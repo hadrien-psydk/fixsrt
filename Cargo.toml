@@ -1,0 +1,6 @@
+[package]
+name = "fixsrt"
+version = "0.1.0"
+authors = ["Hadrien Nilsson <github@psydk.org>"]
+
+[dependencies]
