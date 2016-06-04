@@ -7,6 +7,9 @@ use std::io::BufReader;
 use std::fs::File;
 use std::process;
 use std::str::FromStr;
+use std::env;
+use std::io::{Error, ErrorKind};
+use std::borrow;
 
 #[derive(Default)]
 struct Subtitle {
@@ -259,10 +262,67 @@ fn do_replacements(subtitles: &mut Vec<Subtitle>) {
 
 const BOM: [u8;3] = [0xEF, 0xBB, 0xBF];
 
+struct WorkFile {
+	file_path: String,
+	work_file_path: String,
+	file: Option<File>
+}
+
+impl WorkFile {
+	fn create(file_path: &str) -> io::Result<WorkFile> {
+		let work_file_path: String = format!("{}.work", file_path);
+		let file = match File::create(&work_file_path) {
+			Ok(file) => file,
+			Err(err) => { return Err(err); }
+		};
+		Ok(WorkFile {
+			file_path: file_path.to_string(),
+			work_file_path: work_file_path,
+			file: Some(file)
+		})
+	}
+
+	fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+		let ret = match self.file {
+			Some(ref mut some_file) => some_file.write(buf),
+			None => Err( Error::new(ErrorKind::Other, "oops") )
+		};
+		ret
+	}
+
+	fn commit(&mut self) {
+		let file = self.file.take();
+		drop(file);
+		match std::fs::rename(&self.work_file_path, &self.file_path) {
+			Ok(_) => (),
+			Err(err) => panic!("commit failed: {}", err)
+		}
+	}
+}
+
+impl Drop for WorkFile {
+	fn drop(&mut self) {
+		if self.file.is_some() {
+			drop(self.file.take());
+			match std::fs::remove_file(&self.work_file_path) {
+				Ok(_) => (),
+				Err(err) => panic!("rollback failed: {}", err)
+			}
+		}
+	}
+}
+
 ///////////////////////////////////////////////////////////////////////////////
-fn save_subtitles(subtitles: &Vec<Subtitle>) {
-	let mut file_out = File::create("/home/hadrien/rust/fixsrt/out_utf8.srt").unwrap();
-	match file_out.write(&BOM) {
+fn save_subtitles(subtitles: &Vec<Subtitle>, file_path: &str) {
+
+	let mut work_file = match WorkFile::create(file_path) {
+		Ok(file) => file,
+		Err(err) => {
+			println!("Cannot create file {}", err);
+			return;
+		}
+	};
+	match work_file.write(&BOM) {
 		Ok(len) => if len != BOM.len() {
 			println!("Cannot write BOM: not enough space");
 			return;
@@ -275,7 +335,7 @@ fn save_subtitles(subtitles: &Vec<Subtitle>) {
 	for subtitle in subtitles.iter() {
 		let data_str = subtitle.to_string();
 		let data = data_str.as_bytes();
-		match file_out.write(data) {
+		match work_file.write(data) {
 			Ok(len) => if len != data.len() {
 				println!("Cannot write subtitle: not enough space");
 				return;
@@ -286,11 +346,18 @@ fn save_subtitles(subtitles: &Vec<Subtitle>) {
 			}
 		}
 	}
+	work_file.commit();
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-fn main() {
-	let file = File::open("/home/hadrien/rust/fixsrt/in_utf8.srt").unwrap();
+fn load_subtitles(file_path: &str) -> Result<Vec<Subtitle>,String> {
+	let file = match File::open(file_path) {
+		Ok(file) => file,
+		Err(err) => {
+			println!("Cannot open file: {}", err);
+			std::process::exit(1);
+		}
+	};
 
 	let mut buf_reader = BufReader::new(file);
 
@@ -307,8 +374,65 @@ fn main() {
 	if remove_bom {
 		buf_reader.consume(3);
 	}
+	return parse_lines(buf_reader.lines());
+}
 
-	let subtitles_res = parse_lines(buf_reader.lines());
+///////////////////////////////////////////////////////////////////////////////
+#[derive(Debug)]
+struct AppArgs {
+	no_backup: bool,
+	file_path: String,
+	out_file_path: String
+}
+
+fn parse_app_args() -> AppArgs {
+	let mut args = env::args();
+	if args.len() == 1 {
+		println!("fixsrt - Hadrien Nilsson - 2016");
+		println!("usage: fixsrt [-nobak] SRTFILE [OUTFILE]");
+		std::process::exit(0);
+	}
+	args.next().unwrap(); // Skip programe name
+
+	let (no_backup, file_path) = {
+		match args.next() {
+			Some(arg) => {
+				if arg == "-nobak" {
+					match args.next() {
+						Some(arg2) => (true, arg2),
+						None => {
+							println!("Missing file");
+							std::process::exit(1);
+						}
+					}
+				}
+				else {
+					(false, arg)
+				}
+			},
+			None => {
+				println!("No arg");
+				std::process::exit(1);
+			}
+		}
+	};
+
+	let out_file_path = match args.next() {
+		Some(arg) => arg,
+		None => file_path.clone() // Same as input file path
+	};
+	AppArgs {
+		no_backup: no_backup,
+		file_path: file_path,
+		out_file_path: out_file_path
+	}
+}
+
+///////////////////////////////////////////////////////////////////////////////
+fn main() {
+	let app_args = parse_app_args();
+
+	let subtitles_res = load_subtitles(&app_args.file_path);
 	match subtitles_res {
 		Ok(ref subtitles) => println!("{} subtitles", subtitles.len()),
 		Err(ref err) => println!("{}", err)
@@ -316,5 +440,14 @@ fn main() {
 
 	let mut subtitles = subtitles_res.unwrap();
 	do_replacements(&mut subtitles);
-	save_subtitles(&subtitles);
+
+	// Do backup
+	if !app_args.no_backup {
+		let backup_file_path = format!("{}~", &app_args.file_path);
+		match std::fs::copy(&app_args.file_path, &backup_file_path) {
+			Ok(_) => (),
+			Err(err) => println!("Cannot create backup: {}", err)
+		}
+	}
+	save_subtitles(&subtitles, &app_args.out_file_path);
 }
