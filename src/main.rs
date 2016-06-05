@@ -16,7 +16,7 @@ mod workfile;
 struct Subtitle {
 	num: u32,
 	duration: String,
-	text: [String; 5],
+	texts: [String; 5],
 	text_count: u32
 }
 
@@ -27,57 +27,118 @@ impl Subtitle {
 		ret.push_str(&self.duration);
 		ret.push_str("\r\n");
 		for text_index in 0..self.text_count as usize {
-			ret.push_str(&self.text[text_index]);
+			ret.push_str(&self.texts[text_index]);
 			ret.push_str("\r\n");
 		}
 		ret.push_str("\r\n");
 		ret
 	}
+
+	// Returns true if full
+	fn push_text(&mut self, line: &str) -> bool {
+		let next_index = self.text_count as usize;
+		if next_index == self.texts.len() {
+			true
+		}
+		else {
+			self.texts[next_index] = line.to_string();
+			self.text_count += 1;
+			false
+		}
+	}
 }
 
-fn parse_lines<L: IntoIterator<Item=io::Result<String>>>(lines: L)
-	-> Result<Vec<Subtitle>,String> {
+fn parse_srt(content: &str) -> Result<Vec<Subtitle>,String> {
 	let mut subtitles: Vec<Subtitle> = Vec::new();
 
+	#[derive(Debug)]
 	enum State {
 	    WantsNum,
 	    WantsDuration,
-	    WantsText
+	    WantsFirstText,
+	    WantsFirstTextAgain,
+	    WantsFollowingText
 	}
 	let mut state: State = State::WantsNum;
 
 	let mut subtitle: Subtitle = Default::default();
-	for line_result in lines {
-		let line = line_result.unwrap();
+	let mut line_num = 1;
+	for line in content.lines() {
+		//println!("[{:?}] {}", state, line);
 		match state {
 			State::WantsNum => {
-				subtitle.num = u32::from_str(&line).unwrap();
+				subtitle.num = match u32::from_str(&line) {
+					Ok(val) => val,
+					Err(err) => {
+						return Err(format!("Bad number at line {}: {}: '{}'",
+							line_num, err, line));
+					}
+				};
 				state = State::WantsDuration;
 			},
 			State::WantsDuration => {
-				subtitle.duration = line;
-				state = State::WantsText;
+				subtitle.duration = line.to_string();
+				state = State::WantsFirstText;
 			},
-			State::WantsText => {
+			State::WantsFirstText => {
+				if line.is_empty() {
+					// That's suspicious
+					state = State::WantsFirstTextAgain;
+				}
+				else {
+					subtitle.push_text(line);
+					state = State::WantsFollowingText;
+				}
+			},
+			State::WantsFirstTextAgain => {
+				if line.is_empty() {
+					// That's suspicious
+				}
+				else {
+					// Maybe the subtitle is empty, check for a number
+					let new_one = if let Ok(val) = u32::from_str(&line) {
+						// Is that a new subtitle? Or the text that finaly came?
+						if val == subtitle.num + 1 {
+							// We assume it's a new subtitle
+							subtitles.push(subtitle);
+							subtitle = Default::default();
+							subtitle.num = val;
+							state = State::WantsDuration;
+							true
+						}
+						else {
+							false
+						}
+					}
+					else {
+						false
+					};
+
+					if !new_one {
+						// The non-empty line is the line we were waiting for
+						subtitle.push_text(line);
+						state = State::WantsFollowingText;
+					}
+				}
+			},
+			State::WantsFollowingText => {
 				if line.is_empty() {
 					subtitles.push(subtitle);
 					subtitle = Default::default();
 					state = State::WantsNum;
 				}
 				else {
-					let next_index = subtitle.text_count as usize;
-					if next_index == subtitle.text.len() {
-						return Err(format!("too much text for {}", subtitle.num))
-					}
-					else {
-						subtitle.text[next_index] = line;
-						subtitle.text_count += 1;
+					if subtitle.push_text(line) {
+						return Err(format!("Too much text at line {}", line_num));
 					}
 				}
 			}
 		}
+		line_num += 1;
 	}
 
+	// Push the last subtitle because we may not have an empty line
+	// to know the last subtitle ended
 	if subtitle.text_count > 0 {
 		subtitles.push(subtitle);
 	}
@@ -279,12 +340,95 @@ fn test_replace_one() {
 	assert_eq!("Ça", replace_one("Ca"));
 	assert!("Çaribou" != replace_one("Caribou"));
 	assert_eq!("œizz", replace_one("oeizz"));
+	assert_eq!("des frères, des sœurs.", replace_one("des frères, des soeurs."));
+}
+
+#[test]
+fn test_parse_srt() {
+
+	///////////////////////////////////
+	// Unexpected empty line in text
+	{
+		let srt = r#"42
+00:00:16,087 --> 00:00:19,911
+
+suspicious empty line above
+
+43
+00:00:20,000 --> 00:00:21,000
+mango"#;
+		let subs_res = parse_srt(srt);
+		assert!(subs_res.is_ok(), format!("{}", subs_res.err().unwrap()) );
+		let subs = subs_res.unwrap();
+		assert!(subs.len() == 2);
+		assert!(subs[0].num == 42);
+		assert!(subs[0].text_count == 1);
+		assert!(subs[0].text[0] == "suspicious empty line above");
+		assert!(subs[1].num == 43);
+		assert!(subs[1].text_count == 1);
+		assert!(subs[1].text[0] == "mango");
+	}
+
+	///////////////////////////////////
+	// Simple case
+	{
+		let srt = r#"42
+00:00:16,087 --> 00:00:19,911
+hello"#;
+		let subs_res = parse_srt(srt);
+		assert!(subs_res.is_ok(), format!("{}", subs_res.err().unwrap()) );
+		let subs = subs_res.unwrap();
+		assert!(subs.len() == 1);
+	}
+	
+	///////////////////////////////////
+	// Two lines of text
+	{
+		let srt = r#"42
+00:00:16,087 --> 00:00:19,911
+hello
+mister
+
+43
+00:00:20,000 --> 00:00:21,000
+hi"#;
+		let subs_res = parse_srt(srt);
+		assert!(subs_res.is_ok(), format!("{}", subs_res.err().unwrap()) );
+		let subs = subs_res.unwrap();
+		assert!(subs.len() == 2);
+		assert!(subs[0].num == 42);
+		assert!(subs[0].text_count == 2);
+		assert!(subs[0].text[0] == "hello");
+		assert!(subs[0].text[1] == "mister");
+	}
+
+	///////////////////////////////////
+	// No text
+	{
+		let srt = r#"42
+00:00:16,087 --> 00:00:19,911
+
+43
+00:00:20,000 --> 00:00:21,000
+hi"#;
+		let subs_res = parse_srt(srt);
+		assert!(subs_res.is_ok(), format!("{}", subs_res.err().unwrap()) );
+		let subs = subs_res.unwrap();
+		assert!(subs.len() == 2);
+		assert!(subs[0].num == 42);
+		assert!(subs[0].text_count == 0);
+		assert!(subs[1].num == 43);
+		assert!(subs[1].text_count == 1);
+		assert!(subs[1].text[0] == "hi");
+	}
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 fn do_replacements(subtitles: &mut Vec<Subtitle>) {
 	for subtitle in subtitles.iter_mut() {
-		subtitle.text[0] = replace_one(&subtitle.text[0]);
+		for text_index in 0..subtitle.text_count as usize {
+			subtitle.texts[text_index] = replace_one(&subtitle.texts[text_index]);
+		}
 		//print!("{}", subtitle.to_string());
 	}
 }
@@ -354,7 +498,15 @@ fn load_subtitles(file_path: &str) -> Result<Vec<Subtitle>,String> {
 	if remove_bom {
 		buf_reader.consume(3);
 	}
-	return parse_lines(buf_reader.lines());
+	let mut content = String::new();
+	match buf_reader.read_to_string(&mut content) {
+		Ok(_) => (),
+		Err(err) => {
+			println!("Cannot read content: {}", err);
+			std::process::exit(1);	
+		}
+	}
+	return parse_srt(&content);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
