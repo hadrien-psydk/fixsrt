@@ -9,7 +9,8 @@ use std::process;
 use std::str::FromStr;
 use std::env;
 use std::io::{Error, ErrorKind};
-use std::borrow;
+
+mod workfile;
 
 #[derive(Default)]
 struct Subtitle {
@@ -46,7 +47,6 @@ fn parse_lines<L: IntoIterator<Item=io::Result<String>>>(lines: L)
 	let mut state: State = State::WantsNum;
 
 	let mut subtitle: Subtitle = Default::default();
-	let mut counter = 0;
 	for line_result in lines {
 		let line = line_result.unwrap();
 		match state {
@@ -76,8 +76,6 @@ fn parse_lines<L: IntoIterator<Item=io::Result<String>>>(lines: L)
 				}
 			}
 		}
-		counter += 1;
-		if counter == 10 { break; }
 	}
 
 	if subtitle.text_count > 0 {
@@ -86,27 +84,53 @@ fn parse_lines<L: IntoIterator<Item=io::Result<String>>>(lines: L)
 	Ok(subtitles)
 }
 
+fn is_separator(c: char) -> bool {
+	return c == ' ' || c == '\u{A0}' || c == '.' || c == ',';
+}
+
 struct Text {
 	line: String
 }
 
 impl Text {
+	// Replaces a word or multiple words.
+	// If the word to search ends with a *: a separator or letter can follow
+	// If the word to search does not: only a separator can follow
 	fn replace(&mut self, what: &str, with: &str) {
 		self.line = {
 			let mut new_line = String::new();
 			let mut line_str = self.line.as_str();
+			let (what_no_star, anything_can_follow) = {
+				if what.ends_with("*") {
+					(&what[..what.len()-1], true)
+				}
+				else {
+					(what, false)
+				}
+			};
 
 			loop {
-				match line_str.find(what) {
+				match line_str.find(what_no_star) {
 					None => {
 						new_line.push_str(line_str);
 						break;
 					},
 					Some(index) => {
+						// Found! Verify the next char
+						let next_char = line_str[index + what_no_star.len()..].chars().next();
+						let do_replace = match next_char {
+							Some(c) => anything_can_follow || is_separator(c),
+							None => true
+						};
 						let (left, right) = line_str.split_at(index);
 						new_line.push_str(left);
-						new_line.push_str(with);
-						line_str = &right[what.len()..];
+						if do_replace {
+							new_line.push_str(with);
+						}
+						else {
+							new_line.push_str(what_no_star);
+						}
+						line_str = &right[what_no_star.len()..];
 						if line_str.is_empty() {
 							break;
 						}
@@ -120,129 +144,125 @@ impl Text {
 
 ///////////////////////////////////////////////////////////////////////////////
 fn replace_one(text: &str) -> String {
-	
-	// Trop d'espaces
 	let mut t = Text { line: text.to_string() };
 
 	let rules = [
 		("  ", " "),
-		("Salut", "Yo"),
 
 		// Ordinaux
-		("2ème ", "2e "),
-		("3ème ", "3e "),
-		("4ème ", "4e "),
-		("5ème ", "5e "),
-		("6ème ", "6e "),
-		("25ème ", "25e "),
+		("2ème",  "2e"),
+		("3ème",  "3e"),
+		("4ème",  "4e"),
+		("5ème",  "5e"),
+		("6ème",  "6e"),
+		("25ème", "25e"),
 
-		("Ca ", "Ça "),
-		("Ca\u{00A0}", "Ça\u{00A0}"),
-		("Ca,", "Ça,"),
-		("Ca.", "Ça."),
+		("Ca", "Ça"),
 
-		("Ecartez", "Écartez"),
+		("Ecartez",    "Écartez"),
 		("Echantillon", "Échantillon"),
-		("Ecole ", "École "),
-		("Economis", "Économis"),
-		("Ecout", "Écout"),
-		("Ecras", "Écras"),
-		("Edition", "Édition"),
-		("Egoïste", "Égoïste"),
-		("Egypt", "Égypt"),
-		("Elevé", "Élevé"),
-		("Eloign", "Éloign"),
-		("Etat", "État"),
-		("Etais", "Étais"),
-		("Etant ", "Étant "),
-		("Eteins ça", "Éteins ça"),
-		("Eteins-moi ", "Éteins-moi "),
-		("Eteins le ", "Éteins le "),
-		("Eteins la ", "Éteins la "),
-		("Etonnant", "Étonnant"),
+		("Ecole",      "École"),
+		("Economis*",  "Économis*"),
+		("Ecout*",     "Écout"),
+		("Ecras*",     "Écras"),
+		("Edition",    "Édition"),
+		("Egoïste",    "Égoïste"),
+		("Egypt*",     "Égypt"),
+		("Elevé",      "Élevé"),
+		("Eloign*",    "Éloign"),
+		("Etat",       "État"),
+		("Etais",      "Étais"),
+		("Etant",      "Étant"),
+		("Eteins ça",  "Éteins ça"),
+		("Eteins-moi", "Éteins-moi"),
+		("Eteins le",  "Éteins le"),
+		("Eteins la",  "Éteins la"),
+		("Etonnant",   "Étonnant"),
 		("Evidemment", "Évidemment"),
-		("Evite ", "Évite "),
+		("Evite*",     "Évite"),
 
 		("Etes", "Êtes"),
-		("Etre ", "Être "),
+		("Etre", "Être"),
 		
-		("A bientôt", "À bientôt"),
-		("A cause", "À cause"),
-		("A ceci", "À ceci"),
-		("A ce ", "À ce "),
-		("A chaque", "À chaque"),
-		("A combien", "À combien"),
+		("A bientôt",   "À bientôt"),
+		("A cause",     "À cause"),
+		("A ceci",      "À ceci"),
+		("A ce",        "À ce"),
+		("A chaque",    "À chaque"),
+		("A combien",   "À combien"),
 		("A commencer", "À commencer"),
 		("A condition", "À condition"),
-		("A croire ", "À croire "),
-		("A demain", "À demain"),
-		("A déplacer", "À déplacer"),
-		("A des ", "À des "),
-		("A deux", "À deux"),
+		("A croire",    "À croire"),
+		("A demain",    "À demain"),
+		("A déplacer",  "À déplacer"),
+		("A des",      "À des"),
+		("A deux",     "À deux"),
 		("A emporter", "À emporter"),
-		("A faire", "À faire"),
-		("A fumer", "À fumer"),
-		("A l'", "À l'"),
-		("A me ", "À me "),
-		("A moins", "À moins"),
-		("A mon ", "À mon "),
+		("A faire",  "À faire"),
+		("A fumer",  "À fumer"),
+		("A l'*",    "À l'"),
+		("A me",     "À me"),
+		("A moins",  "À moins"),
+		("A mon",    "À mon"),
 		("A genoux", "À genoux"),
-		("A la ", "À la "),
-		("A Los ", "À Los "),
-		("A ne ", "À ne "),
-		("A notre", "À notre"),
-		("A nous ", "À nous "),
+		("A la",     "À la"),
+		("A Los",    "À Los"),
+		("A ne",     "À ne"),
+		("A notre",   "À notre"),
+		("A nous",    "À nous"),
 		("A nouveau", "À nouveau"),
-		("A part", "À part"),
+		("A part",   "À part"),
 		("A peine,", "À peine,"),
-		("A peine ", "À peine "),
+		("A peine",  "À peine"),
 		("A peu près", "À peu près"),
-		("A plus !", "À plus !"),
-		("A plus\u{00A0}!", "À plus\u{00A0}!"),
-		("A plus,", "À plus,"),
-		("A plus tard", "À plus tard"),
+		("A plus",   "À plus"),
 		("A propos", "À propos"),
-		("A qu", "À qu"),
-		("A rien", "À rien"),
-		("A son ", "À son "),
-		("A table", "À table"),
-		("A terre ", "À terre"),
-		("A te ", "À te "),
-		("A tes ", "À tes "), // À tes yeux
-		("A toi", "À toi"),
-		("A ton ", "À ton "),
-		("A tou", "À tou"),
-		("A un", "À un"),
-		("A votre ", "À votre "),
-		("A vous ", "À vous "),
-		("A vos ", "À vos "),
+		("A qu",     "À qu"),
+		("A rien",   "À rien"),
+		("A son",    "À son"),
+		("A table",  "À table"),
+		("A terre",  "À terre"),
+		("A te",     "À te"),
+		("A tes",    "À tes"),
+		("A toi",    "À toi"),
+		("A ton",    "À ton"),
+		("A tou",    "À tou"),
+		("A un",     "À un"),
+		("A votre",  "À votre"),
+		("A vous",   "À vous"),
+		("A vos",    "À vos"),
 		("A vrai dire", "À vrai dire"),
-		("A vendredi", "À vendredi"),
+		("A vendredi",  "À vendredi"),
 		
-		// U+0153 = ligature oe	
-		("coeur", "c\u{0153}ur"),
-		("oeuf", "\u{0153}uf"),
-		("oei", "\u{0153}i"),
-		("noeud", "n\u{0153}ud"),
-		("soeur", "s\u{0153}ur"),
-		("oeuvre", "\u{0153}uvre"),
-		("voeu", "v\u{0153}u"),
+		// Ligature œ	
+		("coeur",   "cœur"),
+		("coeurs",  "cœurs"),
+		("oeuf",    "œuf"),
+		("oeufs",   "œufs"),
+		("oei*",    "œi"),
+		("noeud",   "nœud"),
+		("noeuds",  "nœuds"),
+		("soeur",   "sœur"),
+		("soeurs",  "sœurs"),
+		("oeuvre",  "œuvre"),
+		("oeuvres", "œuvres"),
+		("voeux",   "vœux"),
 
 		// Misc
 		("des qu'", "dès qu'"),
-		("que tu ais ", "que tu aies "),
-		("Tous les 2 ", "Tous les deux "),
+		("que tu ais", "que tu aies"),
+		("Tous les 2", "Tous les deux"),
 		("J'ai du vérifier", "J'ai dû vérifier"),
 		("c'est règlé", "c'est réglé"),
 		
 		// Subjonctif présent 2e personne
-		("N'ais ", "N'aies "),
+		("N'ais", "N'aies"),
 
 		// Participe passé au lieu d'infinitif
-		(" se déplacé ", " se déplacer "),
+		(" se déplacé", " se déplacer"),
 		
-		// Conuguaison
-		("Je doit ", "Je dois ")
+		// Conjuguaison
+		("Je doit", "Je dois")
 	];
 	for rule_ref in rules.iter() {
 		let &(what, with) = rule_ref;
@@ -252,84 +272,43 @@ fn replace_one(text: &str) -> String {
 	t.line
 }
 
+#[test]
+fn test_replace_one() {
+	assert_eq!("Ça va", replace_one("Ca va"));
+	assert_eq!("Ça.", replace_one("Ca."));
+	assert_eq!("Ça", replace_one("Ca"));
+	assert!("Çaribou" != replace_one("Caribou"));
+	assert_eq!("œizz", replace_one("oeizz"));
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 fn do_replacements(subtitles: &mut Vec<Subtitle>) {
 	for subtitle in subtitles.iter_mut() {
 		subtitle.text[0] = replace_one(&subtitle.text[0]);
-		print!("{}", subtitle.to_string());
+		//print!("{}", subtitle.to_string());
 	}
 }
 
 const BOM: [u8;3] = [0xEF, 0xBB, 0xBF];
 
-struct WorkFile {
-	file_path: String,
-	work_file_path: String,
-	file: Option<File>
-}
-
-impl WorkFile {
-	fn create(file_path: &str) -> io::Result<WorkFile> {
-		let work_file_path: String = format!("{}.work", file_path);
-		let file = match File::create(&work_file_path) {
-			Ok(file) => file,
-			Err(err) => { return Err(err); }
-		};
-		Ok(WorkFile {
-			file_path: file_path.to_string(),
-			work_file_path: work_file_path,
-			file: Some(file)
-		})
-	}
-
-	fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-		let ret = match self.file {
-			Some(ref mut some_file) => some_file.write(buf),
-			None => Err( Error::new(ErrorKind::Other, "oops") )
-		};
-		ret
-	}
-
-	fn commit(&mut self) {
-		let file = self.file.take();
-		drop(file);
-		match std::fs::rename(&self.work_file_path, &self.file_path) {
-			Ok(_) => (),
-			Err(err) => panic!("commit failed: {}", err)
-		}
-	}
-}
-
-impl Drop for WorkFile {
-	fn drop(&mut self) {
-		if self.file.is_some() {
-			drop(self.file.take());
-			match std::fs::remove_file(&self.work_file_path) {
-				Ok(_) => (),
-				Err(err) => panic!("rollback failed: {}", err)
-			}
-		}
-	}
-}
-
 ///////////////////////////////////////////////////////////////////////////////
-fn save_subtitles(subtitles: &Vec<Subtitle>, file_path: &str) {
+fn save_subtitles(subtitles: &Vec<Subtitle>, file_path: &str) -> io::Result<()> {
 
-	let mut work_file = match WorkFile::create(file_path) {
+	let mut work_file = match workfile::WorkFile::create(file_path) {
 		Ok(file) => file,
 		Err(err) => {
 			println!("Cannot create file {}", err);
-			return;
+			return Err(err);
 		}
 	};
 	match work_file.write(&BOM) {
 		Ok(len) => if len != BOM.len() {
 			println!("Cannot write BOM: not enough space");
-			return;
+			return Err(Error::new(ErrorKind::Other, "bad len BOM"));
 		},
 		Err(err) => {
 			println!("Cannot write BOM: {}", err);
-			return;
+			return Err(err);
 		}
 	}
 	for subtitle in subtitles.iter() {
@@ -338,15 +317,16 @@ fn save_subtitles(subtitles: &Vec<Subtitle>, file_path: &str) {
 		match work_file.write(data) {
 			Ok(len) => if len != data.len() {
 				println!("Cannot write subtitle: not enough space");
-				return;
+				return Err(Error::new(ErrorKind::Other, "bad len"));
 			},
 			Err(err) => {
 				println!("Cannot write subtitle: {}", err);
-				return;
+				return Err(err);
 			}
 		}
 	}
 	work_file.commit();
+	Ok(())
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -389,7 +369,7 @@ fn parse_app_args() -> AppArgs {
 	let mut args = env::args();
 	if args.len() == 1 {
 		println!("fixsrt - Hadrien Nilsson - 2016");
-		println!("usage: fixsrt [-nobak] SRTFILE [OUTFILE]");
+		println!("usage: fixsrt [-nobak] SRTFILE [-out OUTFILE]");
 		std::process::exit(0);
 	}
 	args.next().unwrap(); // Skip programe name
@@ -417,10 +397,32 @@ fn parse_app_args() -> AppArgs {
 		}
 	};
 
-	let out_file_path = match args.next() {
-		Some(arg) => arg,
-		None => file_path.clone() // Same as input file path
+	let has_out = match args.next() {
+		Some(arg) => if arg == "-out" {
+			true
+		}
+		else {
+			println!("Unexpected argument: {}", arg);
+			std::process::exit(1);
+		},
+		None => {
+			false
+		}
 	};
+
+	let out_file_path = if has_out {
+		match args.next() {
+			Some(arg) => arg,
+			None => {
+				println!("Missing output file");
+				std::process::exit(1);
+			}
+		}
+	}
+	else {
+		file_path.clone() // Same as input file path
+	};
+	
 	AppArgs {
 		no_backup: no_backup,
 		file_path: file_path,
@@ -434,8 +436,11 @@ fn main() {
 
 	let subtitles_res = load_subtitles(&app_args.file_path);
 	match subtitles_res {
-		Ok(ref subtitles) => println!("{} subtitles", subtitles.len()),
-		Err(ref err) => println!("{}", err)
+		Ok(_) => (),
+		Err(ref err) => {
+			println!("{}", err);
+			std::process::exit(1);
+		}
 	}
 
 	let mut subtitles = subtitles_res.unwrap();
@@ -449,5 +454,12 @@ fn main() {
 			Err(err) => println!("Cannot create backup: {}", err)
 		}
 	}
-	save_subtitles(&subtitles, &app_args.out_file_path);
+	match save_subtitles(&subtitles, &app_args.out_file_path) {
+		Ok(_) => (),
+		Err(_) => {
+			println!("Save failed");
+			std::process::exit(1);
+		}
+	}
+	println!("Done - {} subtitles", subtitles.len())
 }
