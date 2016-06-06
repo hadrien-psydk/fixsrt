@@ -1,10 +1,7 @@
 use std;
 use std::io;
-use std::io::Lines;
 use std::io::prelude::*;
-use std::io::BufReader;
 use std::fs::File;
-use std::str::FromStr;
 use std::io::{Error, ErrorKind};
 
 // Helps creating a working file and move the working file
