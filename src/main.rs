@@ -1,11 +1,6 @@
-use std::io;
 use std::io::prelude::*;
-use std::io::BufReader;
-use std::fs::File;
 use std::env;
-use std::io::{Error, ErrorKind};
 
-mod workfile;
 mod srt;
 
 fn is_separator(c: char) -> bool {
@@ -307,82 +302,6 @@ fn do_replacements(subtitles: &mut Vec<srt::Subtitle>) {
 	}
 }
 
-const BOM: [u8;3] = [0xEF, 0xBB, 0xBF];
-
-///////////////////////////////////////////////////////////////////////////////
-fn save_subtitles(subtitles: &Vec<srt::Subtitle>, file_path: &str) -> io::Result<()> {
-
-	let mut work_file = match workfile::WorkFile::create(file_path) {
-		Ok(file) => file,
-		Err(err) => {
-			println!("Cannot create file {}", err);
-			return Err(err);
-		}
-	};
-	match work_file.write(&BOM) {
-		Ok(len) => if len != BOM.len() {
-			println!("Cannot write BOM: not enough space");
-			return Err(Error::new(ErrorKind::Other, "bad len BOM"));
-		},
-		Err(err) => {
-			println!("Cannot write BOM: {}", err);
-			return Err(err);
-		}
-	}
-	for subtitle in subtitles.iter() {
-		let data_str = subtitle.to_string();
-		let data = data_str.as_bytes();
-		match work_file.write(data) {
-			Ok(len) => if len != data.len() {
-				println!("Cannot write subtitle: not enough space");
-				return Err(Error::new(ErrorKind::Other, "bad len"));
-			},
-			Err(err) => {
-				println!("Cannot write subtitle: {}", err);
-				return Err(err);
-			}
-		}
-	}
-	work_file.commit();
-	Ok(())
-}
-
-///////////////////////////////////////////////////////////////////////////////
-fn load_subtitles(file_path: &str) -> Result<Vec<srt::Subtitle>,String> {
-	let file = match File::open(file_path) {
-		Ok(file) => file,
-		Err(err) => {
-			println!("Cannot open file: {}", err);
-			std::process::exit(1);
-		}
-	};
-
-	let mut buf_reader = BufReader::new(file);
-
-	let remove_bom = {
-		let maybe_bom = buf_reader.fill_buf().unwrap();
-		if maybe_bom.len() >= 3
-		&& maybe_bom[0..3] == BOM {
-			true
-		}
-		else {
-			false
-		}
-	};
-	if remove_bom {
-		buf_reader.consume(3);
-	}
-	let mut content = String::new();
-	match buf_reader.read_to_string(&mut content) {
-		Ok(_) => (),
-		Err(err) => {
-			println!("Cannot read content: {}", err);
-			std::process::exit(1);	
-		}
-	}
-	return srt::parse_srt(&content);
-}
-
 ///////////////////////////////////////////////////////////////////////////////
 #[derive(Debug)]
 struct AppArgs {
@@ -460,7 +379,7 @@ fn parse_app_args() -> AppArgs {
 fn main() {
 	let app_args = parse_app_args();
 
-	let subtitles_res = load_subtitles(&app_args.file_path);
+	let subtitles_res = srt::load_subtitles(&app_args.file_path);
 	match subtitles_res {
 		Ok(_) => (),
 		Err(ref err) => {
@@ -480,7 +399,7 @@ fn main() {
 			Err(err) => println!("Cannot create backup: {}", err)
 		}
 	}
-	match save_subtitles(&subtitles, &app_args.out_file_path) {
+	match srt::save_subtitles(&subtitles, &app_args.out_file_path) {
 		Ok(_) => (),
 		Err(_) => {
 			println!("Save failed");

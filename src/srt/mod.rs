@@ -1,5 +1,12 @@
+use std::io;
 use std::io::prelude::*;
 use std::str::FromStr;
+use std::io::BufReader;
+use std::fs::File;
+use std::io::{Error, ErrorKind};
+
+mod workfile;
+//use workfile;
 
 #[derive(Default)]
 pub struct Subtitle {
@@ -132,4 +139,78 @@ pub fn parse_srt(content: &str) -> Result<Vec<Subtitle>,String> {
 		subtitles.push(subtitle);
 	}
 	Ok(subtitles)
+}
+
+const BOM: [u8;3] = [0xEF, 0xBB, 0xBF];
+
+///////////////////////////////////////////////////////////////////////////////
+pub fn load_subtitles(file_path: &str) -> Result<Vec<Subtitle>,String> {
+	let file = match File::open(file_path) {
+		Ok(file) => file,
+		Err(err) => {
+			return Err(format!("Cannot open file: {}", err));
+		}
+	};
+
+	let mut buf_reader = BufReader::new(file);
+
+	let remove_bom = {
+		let maybe_bom = buf_reader.fill_buf().unwrap();
+		if maybe_bom.len() >= 3
+		&& maybe_bom[0..3] == BOM {
+			true
+		}
+		else {
+			false
+		}
+	};
+	if remove_bom {
+		buf_reader.consume(3);
+	}
+	let mut content = String::new();
+	match buf_reader.read_to_string(&mut content) {
+		Ok(_) => (),
+		Err(err) => {
+			return Err(format!("Cannot read content: {}", err));
+		}
+	}
+	return parse_srt(&content);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+pub fn save_subtitles(subtitles: &Vec<Subtitle>, file_path: &str) -> io::Result<()> {
+
+	let mut work_file = match workfile::WorkFile::create(file_path) {
+		Ok(file) => file,
+		Err(err) => {
+			println!("Cannot create file {}", err);
+			return Err(err);
+		}
+	};
+	match work_file.write(&BOM) {
+		Ok(len) => if len != BOM.len() {
+			println!("Cannot write BOM: not enough space");
+			return Err(Error::new(ErrorKind::Other, "bad len BOM"));
+		},
+		Err(err) => {
+			println!("Cannot write BOM: {}", err);
+			return Err(err);
+		}
+	}
+	for subtitle in subtitles.iter() {
+		let data_str = subtitle.to_string();
+		let data = data_str.as_bytes();
+		match work_file.write(data) {
+			Ok(len) => if len != data.len() {
+				println!("Cannot write subtitle: not enough space");
+				return Err(Error::new(ErrorKind::Other, "bad len"));
+			},
+			Err(err) => {
+				println!("Cannot write subtitle: {}", err);
+				return Err(err);
+			}
+		}
+	}
+	work_file.commit();
+	Ok(())
 }
