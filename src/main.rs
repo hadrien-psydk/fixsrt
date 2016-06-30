@@ -1,6 +1,7 @@
 use std::io::prelude::*;
 use std::env;
 
+mod workfile;
 mod srt;
 
 fn is_separator(c: char) -> bool {

@@ -5,8 +5,7 @@ use std::io::BufReader;
 use std::fs::File;
 use std::io::{Error, ErrorKind};
 
-mod workfile;
-//use workfile;
+use workfile;
 
 #[derive(Default)]
 pub struct Subtitle {
