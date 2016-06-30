@@ -1,9 +1,9 @@
 use std::io;
 use std::io::prelude::*;
 use std::str::FromStr;
-use std::io::BufReader;
 use std::fs::File;
 use std::io::{Error, ErrorKind};
+use std::str;
 
 use workfile;
 
@@ -140,40 +140,157 @@ pub fn parse_srt(content: &str) -> Result<Vec<Subtitle>,String> {
 	Ok(subtitles)
 }
 
+#[test]
+fn test_parse_srt() {
+
+	///////////////////////////////////
+	// Unexpected empty line in text
+	{
+		let srt = r#"42
+00:00:16,087 --> 00:00:19,911
+
+suspicious empty line above
+
+43
+00:00:20,000 --> 00:00:21,000
+mango"#;
+		let subs_res = parse_srt(srt);
+		assert!(subs_res.is_ok(), format!("{}", subs_res.err().unwrap()) );
+		let subs = subs_res.unwrap();
+		assert!(subs.len() == 2);
+		assert!(subs[0].num == 42);
+		assert!(subs[0].text_count == 1);
+		assert!(subs[0].texts[0] == "suspicious empty line above");
+		assert!(subs[1].num == 43);
+		assert!(subs[1].text_count == 1);
+		assert!(subs[1].texts[0] == "mango");
+	}
+
+	///////////////////////////////////
+	// Simple case
+	{
+		let srt = r#"42
+00:00:16,087 --> 00:00:19,911
+hello"#;
+		let subs_res = parse_srt(srt);
+		assert!(subs_res.is_ok(), format!("{}", subs_res.err().unwrap()) );
+		let subs = subs_res.unwrap();
+		assert!(subs.len() == 1);
+	}
+	
+	///////////////////////////////////
+	// Two lines of text
+	{
+		let srt = r#"42
+00:00:16,087 --> 00:00:19,911
+hello
+mister
+
+43
+00:00:20,000 --> 00:00:21,000
+hi"#;
+		let subs_res = parse_srt(srt);
+		assert!(subs_res.is_ok(), format!("{}", subs_res.err().unwrap()) );
+		let subs = subs_res.unwrap();
+		assert!(subs.len() == 2);
+		assert!(subs[0].num == 42);
+		assert!(subs[0].text_count == 2);
+		assert!(subs[0].texts[0] == "hello");
+		assert!(subs[0].texts[1] == "mister");
+	}
+
+	///////////////////////////////////
+	// No text
+	{
+		let srt = r#"42
+00:00:16,087 --> 00:00:19,911
+
+43
+00:00:20,000 --> 00:00:21,000
+hi"#;
+		let subs_res = parse_srt(srt);
+		assert!(subs_res.is_ok(), format!("{}", subs_res.err().unwrap()) );
+		let subs = subs_res.unwrap();
+		assert!(subs.len() == 2);
+		assert!(subs[0].num == 42);
+		assert!(subs[0].text_count == 0);
+		assert!(subs[1].num == 43);
+		assert!(subs[1].text_count == 1);
+		assert!(subs[1].texts[0] == "hi");
+	}
+}
+
+///////////////////////////////////////////////////////////////////////////////
+fn decode_windows_1252(content: &[u8]) -> String {
+	let mut ret = String::with_capacity(content.len() * 2);
+	
+	for cp8 in content {
+		ret.push(*cp8 as char);
+	}
+	ret
+}
+
+#[test]
+fn test_decode_windows_1252() {
+    let raw = [0x64u8, 0xe9, 0x6a, 0xe0];
+    let text = decode_windows_1252(&raw);
+    assert!(text == "déjà");
+}
+
 const BOM: [u8;3] = [0xEF, 0xBB, 0xBF];
 
 ///////////////////////////////////////////////////////////////////////////////
 pub fn load_subtitles(file_path: &str) -> Result<Vec<Subtitle>,String> {
-	let file = match File::open(file_path) {
-		Ok(file) => file,
-		Err(err) => {
-			return Err(format!("Cannot open file: {}", err));
-		}
+	let content = {
+		let mut file = match File::open(file_path) {
+			Ok(file) => file,
+			Err(err) => {
+				return Err(format!("Cannot open file: {}", err));
+			}
+		};
+		let mut bytes = Vec::new();
+		if let Err(err) = file.read_to_end(&mut bytes) {
+			return Err(format!("File read error: {}", err));
+		};
+		bytes
 	};
 
-	let mut buf_reader = BufReader::new(file);
+	// Detect encoding
 
-	let remove_bom = {
-		let maybe_bom = buf_reader.fill_buf().unwrap();
-		if maybe_bom.len() >= 3
-		&& maybe_bom[0..3] == BOM {
+	let has_bom = {
+		if content.len() >= 3 && content[0..3] == BOM {
 			true
 		}
 		else {
 			false
 		}
 	};
-	if remove_bom {
-		buf_reader.consume(3);
-	}
-	let mut content = String::new();
-	match buf_reader.read_to_string(&mut content) {
-		Ok(_) => (),
-		Err(err) => {
-			return Err(format!("Cannot read content: {}", err));
+
+	// Temporary String in case the content should be recreated
+	// from windows-1252 to utf-8
+	let tmp_str;
+
+	let content_str = if has_bom {
+		match str::from_utf8(&content[3..]) {
+			Ok(res) => res,
+			Err(err) => {
+				return Err(format!("Invalid UTF-8: {}", err));
+			}
 		}
 	}
-	return parse_srt(&content);
+	else {
+		// Check if it is UTF-8 without BOM
+		match str::from_utf8(&content) {
+			Ok(res) => res,
+			Err(_) => {
+				// Assume it is windows-1252
+				tmp_str = decode_windows_1252(&content);
+				tmp_str.as_str()
+			}
+		}
+	};
+
+	return parse_srt(&content_str);
 }
 
 ///////////////////////////////////////////////////////////////////////////////

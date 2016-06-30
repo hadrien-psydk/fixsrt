@@ -213,86 +213,6 @@ fn test_replace_one() {
 	assert_eq!("des frères, des sœurs.", replace_one("des frères, des soeurs."));
 }
 
-#[test]
-fn test_parse_srt() {
-
-	///////////////////////////////////
-	// Unexpected empty line in text
-	{
-		let srt = r#"42
-00:00:16,087 --> 00:00:19,911
-
-suspicious empty line above
-
-43
-00:00:20,000 --> 00:00:21,000
-mango"#;
-		let subs_res = parse_srt(srt);
-		assert!(subs_res.is_ok(), format!("{}", subs_res.err().unwrap()) );
-		let subs = subs_res.unwrap();
-		assert!(subs.len() == 2);
-		assert!(subs[0].num == 42);
-		assert!(subs[0].text_count == 1);
-		assert!(subs[0].text[0] == "suspicious empty line above");
-		assert!(subs[1].num == 43);
-		assert!(subs[1].text_count == 1);
-		assert!(subs[1].text[0] == "mango");
-	}
-
-	///////////////////////////////////
-	// Simple case
-	{
-		let srt = r#"42
-00:00:16,087 --> 00:00:19,911
-hello"#;
-		let subs_res = parse_srt(srt);
-		assert!(subs_res.is_ok(), format!("{}", subs_res.err().unwrap()) );
-		let subs = subs_res.unwrap();
-		assert!(subs.len() == 1);
-	}
-	
-	///////////////////////////////////
-	// Two lines of text
-	{
-		let srt = r#"42
-00:00:16,087 --> 00:00:19,911
-hello
-mister
-
-43
-00:00:20,000 --> 00:00:21,000
-hi"#;
-		let subs_res = parse_srt(srt);
-		assert!(subs_res.is_ok(), format!("{}", subs_res.err().unwrap()) );
-		let subs = subs_res.unwrap();
-		assert!(subs.len() == 2);
-		assert!(subs[0].num == 42);
-		assert!(subs[0].text_count == 2);
-		assert!(subs[0].text[0] == "hello");
-		assert!(subs[0].text[1] == "mister");
-	}
-
-	///////////////////////////////////
-	// No text
-	{
-		let srt = r#"42
-00:00:16,087 --> 00:00:19,911
-
-43
-00:00:20,000 --> 00:00:21,000
-hi"#;
-		let subs_res = parse_srt(srt);
-		assert!(subs_res.is_ok(), format!("{}", subs_res.err().unwrap()) );
-		let subs = subs_res.unwrap();
-		assert!(subs.len() == 2);
-		assert!(subs[0].num == 42);
-		assert!(subs[0].text_count == 0);
-		assert!(subs[1].num == 43);
-		assert!(subs[1].text_count == 1);
-		assert!(subs[1].text[0] == "hi");
-	}
-}
-
 ///////////////////////////////////////////////////////////////////////////////
 fn do_replacements(subtitles: &mut Vec<srt::Subtitle>) {
 	for subtitle in subtitles.iter_mut() {
@@ -314,7 +234,7 @@ struct AppArgs {
 fn parse_app_args() -> AppArgs {
 	let mut args = env::args();
 	if args.len() == 1 {
-		println!("fixsrt - Hadrien Nilsson - 2016");
+		println!("fixsrt v2 - Hadrien Nilsson - 2016");
 		println!("usage: fixsrt [-nobak] SRTFILE [-out OUTFILE]");
 		std::process::exit(0);
 	}
