@@ -221,20 +221,42 @@ hi"#;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+const W1252_80_9F: [char; 32] = [
+	'\u{20ac}', '\u{0081}', '\u{201a}', '\u{0192}',
+	'\u{201e}', '\u{2026}', '\u{2020}', '\u{2021}',
+	'\u{02c6}', '\u{2030}', '\u{0160}', '\u{2039}',
+	'\u{0152}', '\u{008d}', '\u{017d}', '\u{008f}',
+	'\u{0090}', '\u{2018}', '\u{2019}', '\u{201c}',
+	'\u{201d}', '\u{2022}', '\u{2013}', '\u{2014}',
+	'\u{02dc}', '\u{2122}', '\u{0161}', '\u{203a}',
+	'\u{0153}', '\u{009d}', '\u{017e}', '\u{0178}'
+	];
+
 fn decode_windows_1252(content: &[u8]) -> String {
 	let mut ret = String::with_capacity(content.len() * 2);
 	
 	for cp8 in content {
-		ret.push(*cp8 as char);
+		let c = if 0x80 <= *cp8 && *cp8 <= 0x9f {
+			W1252_80_9F[(*cp8 as usize) - 0x80]
+		}
+		else {
+			*cp8 as char
+		};
+		ret.push(c);
 	}
 	ret
 }
 
 #[test]
 fn test_decode_windows_1252() {
-    let raw = [0x64u8, 0xe9, 0x6a, 0xe0];
+    let raw = [
+    	0x64u8, 0xe9, 0x6a, 0xe0,
+    	0x20,
+    	0x62,0x9c,0x75,0x66,
+    	0x20,
+    	0x33,0x80];
     let text = decode_windows_1252(&raw);
-    assert!(text == "déjà");
+    assert!(text == "déjà bœuf 3€");
 }
 
 const BOM: [u8;3] = [0xEF, 0xBB, 0xBF];
