@@ -227,105 +227,188 @@ fn do_replacements(subtitles: &mut Vec<srt::Subtitle>) {
 #[derive(Debug)]
 struct AppArgs {
 	no_backup: bool,
-	file_path: String,
+	in_file_paths: Vec<String>,
 	out_file_path: String
 }
 
-fn parse_app_args() -> AppArgs {
-	let mut args = env::args();
-	if args.len() == 1 {
-		println!("fixsrt v2 - Hadrien Nilsson - 2016");
-		println!("usage: fixsrt [-nobak] SRTFILE [-out OUTFILE]");
-		std::process::exit(0);
+impl AppArgs {
+	fn new() -> AppArgs {
+		AppArgs { no_backup: false, in_file_paths: Vec::new(), out_file_path: String::new() }
 	}
-	args.next().unwrap(); // Skip programe name
+}
 
-	let (no_backup, file_path) = {
-		match args.next() {
-			Some(arg) => {
-				if arg == "-nobak" {
-					match args.next() {
-						Some(arg2) => (true, arg2),
-						None => {
-							println!("Missing file");
-							std::process::exit(1);
-						}
-					}
-				}
-				else {
-					(false, arg)
-				}
+fn parse_app_args(args: Vec<String>) -> Result<AppArgs, String> {
+
+	enum State {
+		WantsNoBakOrInput,
+		WantsInput,
+		WantsOutOrAnotherInput,
+		WantsOutput,
+		WantsNothing
+	};
+	let mut state = State::WantsNoBakOrInput;
+
+	let mut app_args = AppArgs::new();
+	for arg in args {
+		match state {
+			State::WantsNoBakOrInput => if arg == "-nobak" {
+				app_args.no_backup = true;
+				state = State::WantsInput;
+			}
+			else {
+				app_args.in_file_paths.push(arg);
+				state = State::WantsOutOrAnotherInput;
 			},
-			None => {
-				println!("No arg");
-				std::process::exit(1);
+			State::WantsInput => {
+				app_args.in_file_paths.push(arg);
+				state = State::WantsOutOrAnotherInput;
+			},
+			State::WantsOutOrAnotherInput => if arg == "-out" {
+				if app_args.in_file_paths.len() > 1 {
+					return Err(String::from("-out works only with single input"));
+				}
+				state = State::WantsOutput
+			}
+			else {
+				app_args.in_file_paths.push(arg);
+			},
+			State::WantsOutput => {
+				app_args.out_file_path = arg;
+				state = State::WantsNothing;
+			},
+			State::WantsNothing => {
+				return Err(format!("Unexpected argument: {}", arg));
 			}
 		}
-	};
+	}
 
-	let has_out = match args.next() {
-		Some(arg) => if arg == "-out" {
-			true
-		}
-		else {
-			println!("Unexpected argument: {}", arg);
-			std::process::exit(1);
+	match state {
+		State::WantsNoBakOrInput => {
+			return Err(String::from("Missing arguments"));
 		},
-		None => {
-			false
+		State::WantsInput => {
+			return Err(String::from("Missing input"));
+		},
+		State::WantsOutOrAnotherInput => (),
+		State::WantsOutput => {
+			return Err(String::from("Missing output"));
 		}
-	};
+		State::WantsNothing => ()
+	}
 
-	let out_file_path = if has_out {
-		match args.next() {
-			Some(arg) => arg,
-			None => {
-				println!("Missing output file");
-				std::process::exit(1);
-			}
-		}
-	}
-	else {
-		file_path.clone() // Same as input file path
-	};
-	
-	AppArgs {
-		no_backup: no_backup,
-		file_path: file_path,
-		out_file_path: out_file_path
-	}
+	Ok(app_args)
+}
+
+macro_rules! string_vec {
+    ( $( $x:expr ),* ) => {
+        {
+            let mut _temp_vec = Vec::new();
+            $(
+                _temp_vec.push($x.to_string());
+            )*
+            _temp_vec
+        }
+    };
+}
+
+#[test]
+fn test_parse_app_args() {
+	assert!( parse_app_args(string_vec![]).is_err() );
+	assert!( parse_app_args(string_vec!["-nobak"]).is_err() );
+	assert!( parse_app_args(string_vec!["myfile", "-out"]).is_err() );
+	assert!( parse_app_args(string_vec!["myfile1", "myfile2", "-out"]).is_err() );
+	assert!( parse_app_args(string_vec!["myfile1", "myfile2", "-out", "myres"]).is_err() );
+
+	let mut res = parse_app_args(string_vec!["myfile"]);
+	assert!( res.is_ok() );
+	let mut app_args = res.unwrap();
+	assert_eq!( false, app_args.no_backup );
+	assert_eq!( 1, app_args.in_file_paths.len() );
+	assert_eq!( "myfile", app_args.in_file_paths[0] );
+	assert!( app_args.out_file_path.is_empty() );
+
+	res = parse_app_args(string_vec!["-nobak", "myfile"]);
+	assert!( res.is_ok() );
+	app_args = res.unwrap();
+	assert_eq!( true, app_args.no_backup );
+	assert_eq!( 1, app_args.in_file_paths.len() );
+	assert_eq!( "myfile", app_args.in_file_paths[0] );
+	assert!( app_args.out_file_path.is_empty() );
+
+	res = parse_app_args(string_vec!["myfile", "-out", "myres"]);
+	assert!( res.is_ok() );
+	app_args = res.unwrap();
+	assert_eq!( false, app_args.no_backup );
+	assert_eq!( 1, app_args.in_file_paths.len() );
+	assert_eq!( "myfile", app_args.in_file_paths[0] );
+	assert_eq!( "myres", app_args.out_file_path );
+
+	res = parse_app_args(string_vec!["myfile1", "myfile2"]);
+	assert!( res.is_ok() );
+	app_args = res.unwrap();
+	assert_eq!( false, app_args.no_backup );
+	assert_eq!( 2, app_args.in_file_paths.len() );
+	assert_eq!( "myfile1", app_args.in_file_paths[0] );
+	assert_eq!( "myfile2", app_args.in_file_paths[1] );
+	assert!( app_args.out_file_path.is_empty() );
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 fn main() {
-	let app_args = parse_app_args();
+	let mut args = env::args();
+	if args.len() == 1 {
+		println!("fixsrt v3 - Hadrien Nilsson - 2016");
+		println!("usage: fixsrt [-nobak] SRTFILE [SRTFILE2 [SRTFILE3 [...]]] [-out OUTFILE]");
+		std::process::exit(0);
+	}
+	args.next().unwrap(); // Skip programe name
 
-	let subtitles_res = srt::load_subtitles(&app_args.file_path);
-	match subtitles_res {
-		Ok(_) => (),
-		Err(ref err) => {
+	let app_args = match parse_app_args(args.collect()) {
+		Ok(app_args) => app_args,
+		Err(err) => {
 			println!("{}", err);
 			std::process::exit(1);
 		}
-	}
+	};
 
-	let mut subtitles = subtitles_res.unwrap();
-	do_replacements(&mut subtitles);
+	for in_file_path in app_args.in_file_paths {
+		print!("{} ... ", in_file_path);
 
-	// Do backup
-	if !app_args.no_backup {
-		let backup_file_path = format!("{}~", &app_args.file_path);
-		match std::fs::copy(&app_args.file_path, &backup_file_path) {
+		let subtitles_res = srt::load_subtitles(&in_file_path);
+		match subtitles_res {
 			Ok(_) => (),
-			Err(err) => println!("Cannot create backup: {}", err)
+			Err(ref err) => {
+				println!("{}", err);
+				std::process::exit(1);
+			}
 		}
-	}
-	match srt::save_subtitles(&subtitles, &app_args.out_file_path) {
-		Ok(_) => (),
-		Err(_) => {
-			println!("Save failed");
-			std::process::exit(1);
+
+		let mut subtitles = subtitles_res.unwrap();
+		do_replacements(&mut subtitles);
+
+		// Do backup
+		if !app_args.no_backup {
+			let backup_file_path = format!("{}~", in_file_path);
+			match std::fs::copy(&in_file_path, &backup_file_path) {
+				Ok(_) => (),
+				Err(err) => println!("Cannot create backup: {}", err)
+			}
 		}
+		
+		let out_file_path = if app_args.out_file_path.is_empty() {
+			&in_file_path
+		}
+		else {
+			&app_args.out_file_path
+		};
+
+		match srt::save_subtitles(&subtitles, &out_file_path) {
+			Ok(_) => (),
+			Err(_) => {
+				println!("Save failed");
+				std::process::exit(1);
+			}
+		}
+		println!("done: {} subtitles", subtitles.len());
 	}
-	println!("Done - {} subtitles", subtitles.len())
 }
