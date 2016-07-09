@@ -62,14 +62,20 @@ pub fn parse_srt(content: &str) -> Result<Vec<Subtitle>,String> {
 		//println!("[{:?}] {}", state, line);
 		match state {
 			State::WantsNum => {
-				subtitle.num = match u32::from_str(&line) {
-					Ok(val) => val,
-					Err(err) => {
-						return Err(format!("Bad number at line {}: {}: '{}'",
-							line_num, err, line));
-					}
-				};
-				state = State::WantsDuration;
+				if line.is_empty() {
+					// That's suspicious but accepted
+					// Stay in the WantsNum state
+				}
+				else {
+					subtitle.num = match u32::from_str(&line) {
+						Ok(val) => val,
+						Err(err) => {
+							return Err(format!("Bad number at line {}: {}: '{}'",
+								line_num, err, line));
+						}
+					};
+					state = State::WantsDuration;
+				}
 			},
 			State::WantsDuration => {
 				subtitle.duration = line.to_string();
@@ -142,7 +148,6 @@ pub fn parse_srt(content: &str) -> Result<Vec<Subtitle>,String> {
 
 #[test]
 fn test_parse_srt() {
-
 	///////////////////////////////////
 	// Unexpected empty line in text
 	{
@@ -217,6 +222,29 @@ hi"#;
 		assert!(subs[1].num == 43);
 		assert!(subs[1].text_count == 1);
 		assert!(subs[1].texts[0] == "hi");
+	}
+
+	///////////////////////////////////
+	// Double empty line
+	{
+		let srt = r#"51
+00:00:16,087 --> 00:00:19,911
+begin
+
+
+52
+00:00:20,000 --> 00:00:21,000
+end"#;
+		let subs_res = parse_srt(srt);
+		assert!(subs_res.is_ok(), format!("{}", subs_res.err().unwrap()) );
+		let subs = subs_res.unwrap();
+		assert_eq!(subs.len(), 2);
+		assert_eq!(subs[0].num, 51);
+		assert_eq!(subs[0].text_count, 1);
+		assert_eq!(subs[0].texts[0], "begin");
+		assert_eq!(subs[1].num, 52);
+		assert_eq!(subs[1].text_count, 1);
+		assert_eq!(subs[1].texts[0], "end");
 	}
 }
 

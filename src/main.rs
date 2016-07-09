@@ -18,8 +18,10 @@ impl Text {
 	// If the word to search does not: only a separator can follow
 	fn replace(&mut self, what: &str, with: &str) {
 		self.line = {
-			let mut new_line = String::new();
-			let mut line_str = self.line.as_str();
+			let mut new_line = String::new(); // Result
+			let mut line_str = self.line.as_str(); // Current piece of text
+
+			// First check if the text to search ends with a star.
 			let (what_no_star, anything_can_follow) = {
 				if what.ends_with("*") {
 					(&what[..what.len()-1], true)
@@ -44,14 +46,25 @@ impl Text {
 						};
 						let (left, right) = line_str.split_at(index);
 						new_line.push_str(left);
+						line_str = &right[what_no_star.len()..];
+						let end_reached = line_str.is_empty();
+
 						if do_replace {
-							new_line.push_str(with);
+							// Replace the found text but verify if we are at the
+							// end of a line and the "with" text ends with a space
+							let with2 = if end_reached && with.ends_with(' ') {
+								&with[0..with.len()-1]
+							}
+							else {
+								with
+							};
+							new_line.push_str(with2);
 						}
 						else {
 							new_line.push_str(what_no_star);
 						}
-						line_str = &right[what_no_star.len()..];
-						if line_str.is_empty() {
+						
+						if end_reached {
 							break;
 						}
 					}
@@ -69,6 +82,9 @@ fn replace_one(text: &str) -> String {
 	let rules = [
 		("  ", " "),
 
+		// Ponctuation
+		(" ,*", ", "), // deux ,trois -> deux, trois
+
 		// Ordinaux
 		("1ère",  "1ʳᵉ"),
 		("2ème",  "2ᵉ"),
@@ -79,6 +95,8 @@ fn replace_one(text: &str) -> String {
 		("25ème", "25ᵉ"),
 
 		("Ca", "Ça"),
+
+		("D'ou", "D'où"),
 
 		("Ecartez",    "Écartez"),
 		("Echantillon", "Échantillon"),
@@ -205,12 +223,18 @@ fn replace_one(text: &str) -> String {
 
 #[test]
 fn test_replace_one() {
-	assert_eq!("Ça va", replace_one("Ca va"));
-	assert_eq!("Ça.", replace_one("Ca."));
-	assert_eq!("Ça", replace_one("Ca"));
-	assert!("Çaribou" != replace_one("Caribou"));
-	assert_eq!("œizz", replace_one("oeizz"));
-	assert_eq!("des frères, des sœurs.", replace_one("des frères, des soeurs."));
+	assert_eq!(replace_one("Ca va"), "Ça va");
+	assert_eq!(replace_one("Ca."), "Ça.");
+	assert_eq!(replace_one("Ca"), "Ça");
+	assert!(replace_one("Caribou") != "Çaribou");
+	assert_eq!(replace_one("oeizz"), "œizz");
+	assert_eq!(replace_one("des soeurs."), "des sœurs.");
+
+	assert_eq!(replace_one("un ,deux"), "un, deux");
+
+	// No space if newline
+	assert_eq!(replace_one("un ,"), "un,");
+	assert_eq!(replace_one("D'ou sa"), "D'où sa");
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -357,7 +381,7 @@ fn test_parse_app_args() {
 fn main() {
 	let mut args = env::args();
 	if args.len() == 1 {
-		println!("fixsrt v3 - Hadrien Nilsson - 2016");
+		println!("fixsrt v4 - Hadrien Nilsson - 2016");
 		println!("usage: fixsrt [-nobak] SRTFILE [SRTFILE2 [SRTFILE3 [...]]] [-out OUTFILE]");
 		std::process::exit(0);
 	}
