@@ -1,4 +1,3 @@
-use std::io::prelude::*;
 use std::env;
 
 mod workfile;
@@ -8,13 +7,24 @@ fn is_separator(c: char) -> bool {
 	return c == ' ' || c == '\u{A0}' || c == '.' || c == ',';
 }
 
+fn is_letter(c: char) -> bool {
+	return !is_separator(c);
+}
+
 struct Text {
 	line: String
+}
+
+enum Follow {
+	Nothing,
+	Any,
+	Letter
 }
 
 impl Text {
 	// Replaces a word or multiple words.
 	// If the word to search ends with a *: a separator or letter can follow
+	// If the word to search ends with a #: a letter can follow
 	// If the word to search does not: only a separator can follow
 	fn replace(&mut self, what: &str, with: &str) {
 		self.line = {
@@ -22,12 +32,15 @@ impl Text {
 			let mut line_str = self.line.as_str(); // Current piece of text
 
 			// First check if the text to search ends with a star.
-			let (what_no_star, anything_can_follow) = {
+			let (what_no_star, follow) = {
 				if what.ends_with("*") {
-					(&what[..what.len()-1], true)
+					(&what[..what.len()-1], Follow::Any)
+				}
+				else if what.ends_with("#") {
+					(&what[..what.len()-1], Follow::Letter)
 				}
 				else {
-					(what, false)
+					(what, Follow::Nothing)
 				}
 			};
 
@@ -41,7 +54,11 @@ impl Text {
 						// Found! Verify the next char
 						let next_char = line_str[index + what_no_star.len()..].chars().next();
 						let do_replace = match next_char {
-							Some(c) => anything_can_follow || is_separator(c),
+							Some(c) => match follow {
+								Follow::Nothing => is_separator(c),
+								Follow::Any => true,
+								Follow::Letter => is_letter(c)
+							},
 							None => true
 						};
 						let (left, right) = line_str.split_at(index);
@@ -82,9 +99,6 @@ fn replace_one(text: &str) -> String {
 	let rules = [
 		("  ", " "),
 
-		// Ponctuation
-		(" ,*", ", "), // deux ,trois -> deux, trois
-
 		// Ordinaux
 		("1ère",  "1ʳᵉ"),
 		("2ème",  "2ᵉ"),
@@ -94,11 +108,12 @@ fn replace_one(text: &str) -> String {
 		("6ème",  "6ᵉ"),
 		("25ème", "25ᵉ"),
 
+		("ca", "ça"),
 		("Ca", "Ça"),
 
 		("D'ou", "D'où"),
 
-		("Ecartez",    "Écartez"),
+		("Ecart*",     "Écart"),
 		("Echantillon", "Échantillon"),
 		("Ecole",      "École"),
 		("Economis*",  "Économis*"),
@@ -189,12 +204,18 @@ fn replace_one(text: &str) -> String {
 		("oeuf",    "œuf"),
 		("oeufs",   "œufs"),
 		("oei*",    "œi"),
+		("Oeuf",    "Œuf"),
+		("Oeufs",   "Œufs"),
+		("Oei*",    "Œi"),
+		("lecon",   "leçon"),
 		("noeud",   "nœud"),
 		("noeuds",  "nœuds"),
 		("soeur",   "sœur"),
 		("soeurs",  "sœurs"),
 		("oeuvre",  "œuvre"),
 		("oeuvres", "œuvres"),
+		("Oeuvre",  "Œuvre"),
+		("Oeuvres", "Œuvres"),
 		("voeux",   "vœux"),
 
 		// Misc
@@ -203,6 +224,11 @@ fn replace_one(text: &str) -> String {
 		("Tous les 2", "Tous les deux"),
 		("J'ai du vérifier", "J'ai dû vérifier"),
 		("c'est règlé", "c'est réglé"),
+
+		// Sûr
+		("Je suis sur qu'", "Je suis sûr qu'"),
+		("Bien sur,", "Bien sûr,"),
+		("bien sur,", "bien sûr,"),
 		
 		// Subjonctif présent 2e personne
 		("N'ais", "N'aies"),
@@ -230,11 +256,13 @@ fn test_replace_one() {
 	assert_eq!(replace_one("oeizz"), "œizz");
 	assert_eq!(replace_one("des soeurs."), "des sœurs.");
 
-	assert_eq!(replace_one("un ,deux"), "un, deux");
-
 	// No space if newline
-	assert_eq!(replace_one("un ,"), "un,");
 	assert_eq!(replace_one("D'ou sa"), "D'où sa");
+	assert_eq!(replace_one("bien sur,"), "bien sûr,");
+
+	assert_eq!(replace_one("bien sur,"), "bien sûr,");
+
+	assert_eq!(replace_one("Ecart entre"), "Écart entre");
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -298,6 +326,8 @@ fn parse_app_args(args: Vec<String>) -> Result<AppArgs, String> {
 			},
 			State::WantsOutput => {
 				app_args.out_file_path = arg;
+				// -out disables backup
+				app_args.no_backup = true;
 				state = State::WantsNothing;
 			},
 			State::WantsNothing => {
@@ -381,7 +411,7 @@ fn test_parse_app_args() {
 fn main() {
 	let mut args = env::args();
 	if args.len() == 1 {
-		println!("fixsrt v4 - Hadrien Nilsson - 2016");
+		println!("fixsrt v6 - Hadrien Nilsson - 2016");
 		println!("usage: fixsrt [-nobak] SRTFILE [SRTFILE2 [SRTFILE3 [...]]] [-out OUTFILE]");
 		std::process::exit(0);
 	}
