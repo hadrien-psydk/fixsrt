@@ -45,13 +45,16 @@ impl Text {
 			};
 
 			loop {
+				// Perform a simple string search first, then look at the result
+				// more precisely
 				match line_str.find(what_no_star) {
+
 					None => {
 						new_line.push_str(line_str);
 						break;
 					},
 					Some(index) => {
-						// Found! Verify the next char
+						// Found! Verify the characters around to know if it is really a word
 						let next_char = line_str[index + what_no_star.len()..].chars().next();
 						let do_replace = match next_char {
 							Some(c) => match follow {
@@ -61,12 +64,25 @@ impl Text {
 							},
 							None => true
 						};
+						// Look also the previous char, we do not want to replace text in the
+						// middle of a word
+						let prev_char = line_str[0..index].chars().last();
+						let do_replace2 = match prev_char {
+							Some(c) => !is_letter(c),
+							None => true // Beginning of the line
+						};
+						/*
+						// Poor man debugger
+						println!("line: '{}' index: {} next_char: {:?} prev_char: {:?}",
+							line_str, index, next_char, prev_char);
+						*/
+
 						let (left, right) = line_str.split_at(index);
 						new_line.push_str(left);
 						line_str = &right[what_no_star.len()..];
 						let end_reached = line_str.is_empty();
 
-						if do_replace {
+						if do_replace && do_replace2 {
 							// Replace the found text but verify if we are at the
 							// end of a line and the "with" text ends with a space
 							let with2 = if end_reached && with.ends_with(' ') {
@@ -261,8 +277,8 @@ fn test_replace_one() {
 	assert_eq!(replace_one("bien sur,"), "bien sûr,");
 
 	assert_eq!(replace_one("bien sur,"), "bien sûr,");
-
 	assert_eq!(replace_one("Ecart entre"), "Écart entre");
+	assert_eq!(replace_one("un coca"), "un coca");
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -392,7 +408,7 @@ fn test_parse_app_args() {
 	res = parse_app_args(string_vec!["myfile", "-out", "myres"]);
 	assert!( res.is_ok() );
 	app_args = res.unwrap();
-	assert_eq!( false, app_args.no_backup );
+	assert_eq!( true, app_args.no_backup );
 	assert_eq!( 1, app_args.in_file_paths.len() );
 	assert_eq!( "myfile", app_args.in_file_paths[0] );
 	assert_eq!( "myres", app_args.out_file_path );
@@ -411,7 +427,7 @@ fn test_parse_app_args() {
 fn main() {
 	let mut args = env::args();
 	if args.len() == 1 {
-		println!("fixsrt v6 - Hadrien Nilsson - 2016");
+		println!("fixsrt v7 - Hadrien Nilsson - 2016");
 		println!("usage: fixsrt [-nobak] SRTFILE [SRTFILE2 [SRTFILE3 [...]]] [-out OUTFILE]");
 		std::process::exit(0);
 	}
