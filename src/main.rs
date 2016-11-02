@@ -15,6 +15,7 @@ struct Text {
 	line: String
 }
 
+#[derive(Debug)]
 enum Follow {
 	Nothing,
 	Any,
@@ -32,7 +33,7 @@ impl Text {
 			let mut line_str = self.line.as_str(); // Current piece of text
 
 			// First check if the text to search ends with a star.
-			let (what_no_star, follow) = {
+			let (what_no_star_after, follow) = {
 				if what.ends_with("*") {
 					(&what[..what.len()-1], Follow::Any)
 				}
@@ -43,6 +44,21 @@ impl Text {
 					(what, Follow::Nothing)
 				}
 			};
+
+			let (what_no_star, precede) = {
+				if what_no_star_after.starts_with("*") {
+					(&what_no_star_after[1..], Follow::Any)
+				}
+				else if what_no_star_after.starts_with("#") {
+					(&what_no_star_after[1..], Follow::Letter)
+				}
+				else {
+					(what_no_star_after, Follow::Nothing)
+				}
+			};
+			/*
+			println!("what: {} what_no_star: {} precede: {:?} follow: {:?}",
+				what, what_no_star, precede, follow);*/
 
 			loop {
 				// Perform a simple string search first, then look at the result
@@ -55,8 +71,22 @@ impl Text {
 					},
 					Some(index) => {
 						// Found! Verify the characters around to know if it is really a word
+
+						// Look also the previous char, we do not want to replace text in the
+						// middle of a word. We accept ' as prev char too (not as next char).
+						let prev_char = line_str[0..index].chars().last();
+						let do_replace1 = match prev_char {
+							Some(c) => match precede {
+								Follow::Nothing => !is_letter(c) || (c == '\''),
+								Follow::Any => true,
+								Follow::Letter => is_letter(c)
+							},
+							None => true // Beginning of the line
+						};
+
+						// Now, next char
 						let next_char = line_str[index + what_no_star.len()..].chars().next();
-						let do_replace = match next_char {
+						let do_replace2 = match next_char {
 							Some(c) => match follow {
 								Follow::Nothing => is_separator(c),
 								Follow::Any => true,
@@ -64,25 +94,19 @@ impl Text {
 							},
 							None => true
 						};
-						// Look also the previous char, we do not want to replace text in the
-						// middle of a word
-						let prev_char = line_str[0..index].chars().last();
-						let do_replace2 = match prev_char {
-							Some(c) => !is_letter(c),
-							None => true // Beginning of the line
-						};
-						/*
+
 						// Poor man debugger
-						println!("line: '{}' index: {} next_char: {:?} prev_char: {:?}",
-							line_str, index, next_char, prev_char);
-						*/
+						/*						
+						println!("line: '{}' index: {} prev_char: {:?} next_char: {:?} r1: {} r2: {}",
+							line_str, index, prev_char, next_char,
+							do_replace1, do_replace2);*/
 
 						let (left, right) = line_str.split_at(index);
 						new_line.push_str(left);
 						line_str = &right[what_no_star.len()..];
 						let end_reached = line_str.is_empty();
 
-						if do_replace && do_replace2 {
+						if do_replace1 && do_replace2 {
 							// Replace the found text but verify if we are at the
 							// end of a line and the "with" text ends with a space
 							let with2 = if end_reached && with.ends_with(' ') {
@@ -113,7 +137,14 @@ fn replace_one(text: &str) -> String {
 	let mut t = Text { line: text.to_string() };
 
 	let rules = [
+		// Trop d'espaces
 		("  ", " "),
+
+		// Espace insécable
+		("#!",  "\u{A0}!"),
+		("# !", "\u{A0}!"),
+		("#?",  "\u{A0}?"),
+		("# ?", "\u{A0}?"),
 
 		// Ordinaux
 		("1ère",  "1ʳᵉ"),
@@ -124,17 +155,26 @@ fn replace_one(text: &str) -> String {
 		("6ème",  "6ᵉ"),
 		("25ème", "25ᵉ"),
 
+		("2e",  "2ᵉ"),
+		("3e",  "3ᵉ"),
+		("4e",  "4ᵉ"),
+		("5e",  "5ᵉ"),
+		("6e",  "6ᵉ"),
+
+		// Cédille
 		("ca", "ça"),
 		("Ca", "Ça"),
 
 		("D'ou", "D'où"),
 
+		// Capitales accentuées
 		("Ecart*",     "Écart"),
 		("Echantillon", "Échantillon"),
 		("Ecole",      "École"),
 		("Economis*",  "Économis*"),
 		("Ecout*",     "Écout"),
 		("Ecras*",     "Écras"),
+		("Ecris*",     "Écris"),
 		("Edition",    "Édition"),
 		("Egoïste",    "Égoïste"),
 		("Egypt*",     "Égypt"),
@@ -198,6 +238,7 @@ fn replace_one(text: &str) -> String {
 		("A plus",    "À plus"),
 		("A propos",  "À propos"),
 		("A quelle",  "À quelle"),
+		("A quoi",    "À quoi"),
 		("A rien",    "À rien"),
 		("A son",     "À son"),
 		("A table",   "À table"),
@@ -226,6 +267,8 @@ fn replace_one(text: &str) -> String {
 		("lecon",   "leçon"),
 		("noeud",   "nœud"),
 		("noeuds",  "nœuds"),
+		("recue",   "reçue"),
+		("recus",   "reçus"),
 		("soeur",   "sœur"),
 		("soeurs",  "sœurs"),
 		("oeuvre",  "œuvre"),
@@ -279,6 +322,12 @@ fn test_replace_one() {
 	assert_eq!(replace_one("bien sur,"), "bien sûr,");
 	assert_eq!(replace_one("Ecart entre"), "Écart entre");
 	assert_eq!(replace_one("un coca"), "un coca");
+	assert_eq!(replace_one("l'Etat"), "l'État");
+	assert_eq!(replace_one("ok?"), "ok\u{A0}?");
+	assert_eq!(replace_one("ok ?"), "ok\u{A0}?");
+	assert_eq!(replace_one("ok!"), "ok\u{A0}!");
+	assert_eq!(replace_one("ok !"), "ok\u{A0}!");
+	assert_eq!(replace_one("A quoi?"), "À quoi\u{A0}?");
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -427,7 +476,7 @@ fn test_parse_app_args() {
 fn main() {
 	let mut args = env::args();
 	if args.len() == 1 {
-		println!("fixsrt v7 - Hadrien Nilsson - 2016");
+		println!("fixsrt v9 - Hadrien Nilsson - 2016");
 		println!("usage: fixsrt [-nobak] SRTFILE [SRTFILE2 [SRTFILE3 [...]]] [-out OUTFILE]");
 		std::process::exit(0);
 	}
