@@ -96,7 +96,7 @@ impl Text {
 						};
 
 						// Poor man debugger
-						/*						
+						/*
 						println!("line: '{}' index: {} prev_char: {:?} next_char: {:?} r1: {} r2: {}",
 							line_str, index, prev_char, next_char,
 							do_replace1, do_replace2);*/
@@ -164,6 +164,7 @@ fn replace_one(text: &str) -> String {
 		// Cédille
 		("ca", "ça"),
 		("Ca", "Ça"),
+		("lecon",   "leçon"),
 
 		("D'ou", "D'où"),
 
@@ -187,6 +188,7 @@ fn replace_one(text: &str) -> String {
 		("Eteins-moi", "Éteins-moi"),
 		("Eteins le",  "Éteins le"),
 		("Eteins la",  "Éteins la"),
+		("Etiez-vous", "Étiez-vous"),
 		("Etonnant",   "Étonnant"),
 		("Evidemment", "Évidemment"),
 		("Evite*",     "Évite"),
@@ -241,6 +243,7 @@ fn replace_one(text: &str) -> String {
 		("A quoi",    "À quoi"),
 		("A rien",    "À rien"),
 		("A son",     "À son"),
+		("A t'*",      "À t'"),
 		("A table",   "À table"),
 		("A terre",   "À terre"),
 		("A te",      "À te"),
@@ -256,36 +259,36 @@ fn replace_one(text: &str) -> String {
 		("A vendredi",  "À vendredi"),
 		
 		// Ligature œ	
-		("coeur",   "cœur"),
-		("coeurs",  "cœurs"),
-		("oeuf",    "œuf"),
-		("oeufs",   "œufs"),
-		("oei*",    "œi"),
-		("Oeuf",    "Œuf"),
-		("Oeufs",   "Œufs"),
-		("Oei*",    "Œi"),
-		("lecon",   "leçon"),
-		("noeud",   "nœud"),
-		("noeuds",  "nœuds"),
-		("recue",   "reçue"),
-		("recus",   "reçus"),
-		("soeur",   "sœur"),
-		("soeurs",  "sœurs"),
-		("oeuvre",  "œuvre"),
-		("oeuvres", "œuvres"),
-		("Oeuvre",  "Œuvre"),
-		("Oeuvres", "Œuvres"),
-		("voeux",   "vœux"),
+		("coeur",     "cœur"),
+		("coeurs",    "cœurs"),
+		("oeuf",      "œuf"),
+		("oeufs",     "œufs"),
+		("oei*",      "œi"),
+		("Oeuf",      "Œuf"),
+		("Oeufs",     "Œufs"),
+		("Oei*",      "Œi"),
+		("manoeuvrer","manœuvrer"),
+		("noeud",     "nœud"),
+		("noeuds",    "nœuds"),
+		("recue",     "reçue"),
+		("recus",     "reçus"),
+		("soeur",     "sœur"),
+		("soeurs",    "sœurs"),
+		("oeuvre",    "œuvre"),
+		("oeuvres",   "œuvres"),
+		("Oeuvre",    "Œuvre"),
+		("Oeuvres",   "Œuvres"),
+		("voeux",     "vœux"),
 
 		// Misc
-		("des qu'", "dès qu'"),
+		("des qu'*", "dès qu'"),
 		("que tu ais", "que tu aies"),
 		("Tous les 2", "Tous les deux"),
 		("J'ai du vérifier", "J'ai dû vérifier"),
 		("c'est règlé", "c'est réglé"),
 
 		// Sûr
-		("Je suis sur qu'", "Je suis sûr qu'"),
+		("Je suis sur qu'*", "Je suis sûr qu'"),
 		("Bien sur,", "Bien sûr,"),
 		("bien sur,", "bien sûr,"),
 		
@@ -328,6 +331,10 @@ fn test_replace_one() {
 	assert_eq!(replace_one("ok!"), "ok\u{A0}!");
 	assert_eq!(replace_one("ok !"), "ok\u{A0}!");
 	assert_eq!(replace_one("A quoi?"), "À quoi\u{A0}?");
+	assert_eq!(replace_one("A t'écouter"), "À t'écouter");
+	assert_eq!(replace_one("manoeuvrer"), "manœuvrer");
+	assert_eq!(replace_one("Etiez-vous"), "Étiez-vous");
+	assert_eq!(replace_one("des qu'il"), "dès qu'il");
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -476,7 +483,7 @@ fn test_parse_app_args() {
 fn main() {
 	let mut args = env::args();
 	if args.len() == 1 {
-		println!("fixsrt v9 - Hadrien Nilsson - 2016");
+		println!("fixsrt v10 - Hadrien Nilsson - 2016");
 		println!("usage: fixsrt [-nobak] SRTFILE [SRTFILE2 [SRTFILE3 [...]]] [-out OUTFILE]");
 		std::process::exit(0);
 	}
