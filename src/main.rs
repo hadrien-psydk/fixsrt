@@ -11,6 +11,10 @@ fn is_letter(c: char) -> bool {
 	return !is_separator(c);
 }
 
+fn is_digit(c: char) -> bool {
+	return c.is_digit(10);
+}
+
 struct Text {
 	line: String
 }
@@ -19,14 +23,20 @@ struct Text {
 enum Follow {
 	Nothing,
 	Any,
-	Letter
+	Letter,
+	Digit
 }
 
 impl Text {
 	// Replaces a word or multiple words.
-	// If the word to search ends with a *: a separator or letter can follow
-	// If the word to search ends with a #: a letter can follow
-	// If the word to search does not: only a separator can follow
+	// - If the word to search starts or ends with a *:
+	//   a separator or letter can precede or follow
+	// - If the word to search starts or ends with a +:
+	//   a letter can precede or follow
+	// - If the word to search starts or ends with a #:
+	//   a digit can precede or follow
+	// - If the word to search does not:
+	//   only a separator can precede or follow
 	fn replace(&mut self, what: &str, with: &str) {
 		self.line = {
 			let mut new_line = String::new(); // Result
@@ -37,8 +47,11 @@ impl Text {
 				if what.ends_with("*") {
 					(&what[..what.len()-1], Follow::Any)
 				}
-				else if what.ends_with("#") {
+				else if what.ends_with("+") {
 					(&what[..what.len()-1], Follow::Letter)
+				}
+				else if what.ends_with("#") {
+					(&what[..what.len()-1], Follow::Digit)
 				}
 				else {
 					(what, Follow::Nothing)
@@ -49,8 +62,11 @@ impl Text {
 				if what_no_star_after.starts_with("*") {
 					(&what_no_star_after[1..], Follow::Any)
 				}
-				else if what_no_star_after.starts_with("#") {
+				else if what_no_star_after.starts_with("+") {
 					(&what_no_star_after[1..], Follow::Letter)
+				}
+				else if what_no_star_after.starts_with("#") {
+					(&what_no_star_after[1..], Follow::Digit)
 				}
 				else {
 					(what_no_star_after, Follow::Nothing)
@@ -79,7 +95,8 @@ impl Text {
 							Some(c) => match precede {
 								Follow::Nothing => !is_letter(c) || (c == '\''),
 								Follow::Any => true,
-								Follow::Letter => is_letter(c)
+								Follow::Letter => is_letter(c),
+								Follow::Digit => is_digit(c)
 							},
 							None => true // Beginning of the line
 						};
@@ -90,7 +107,8 @@ impl Text {
 							Some(c) => match follow {
 								Follow::Nothing => is_separator(c),
 								Follow::Any => true,
-								Follow::Letter => is_letter(c)
+								Follow::Letter => is_letter(c),
+								Follow::Digit => is_digit(c)
 							},
 							None => true
 						};
@@ -141,25 +159,76 @@ fn replace_one(text: &str) -> String {
 		("  ", " "),
 
 		// Espace insécable
-		("#!",  "\u{A0}!"),
-		("# !", "\u{A0}!"),
-		("#?",  "\u{A0}?"),
-		("# ?", "\u{A0}?"),
+		("+!",  "\u{A0}!"),
+		("+ !", "\u{A0}!"),
+		("+?",  "\u{A0}?"),
+		("+ ?", "\u{A0}?"),
 
 		// Ordinaux
+		("1er",   "1ᵉʳ"),
+		("1ers",  "1ᵉʳˢ"),
 		("1ère",  "1ʳᵉ"),
+		("1ères",  "1ʳᵉˢ"),
+
 		("2ème",  "2ᵉ"),
 		("3ème",  "3ᵉ"),
 		("4ème",  "4ᵉ"),
 		("5ème",  "5ᵉ"),
 		("6ème",  "6ᵉ"),
-		("25ème", "25ᵉ"),
+		("7ème",  "7ᵉ"),
+		("8ème",  "8ᵉ"),
+		("9ème",  "9ᵉ"),
+
+		("#0ème",  "0ᵉ"),
+		("#1ème",  "1ᵉ"),
+		("#2ème",  "2ᵉ"),
+		("#3ème",  "3ᵉ"),
+		("#4ème",  "4ᵉ"),
+		("#5ème",  "5ᵉ"),
+		("#6ème",  "6ᵉ"),
+		("#7ème",  "7ᵉ"),
+		("#8ème",  "8ᵉ"),
+		("#9ème",  "9ᵉ"),
 
 		("2e",  "2ᵉ"),
 		("3e",  "3ᵉ"),
 		("4e",  "4ᵉ"),
 		("5e",  "5ᵉ"),
 		("6e",  "6ᵉ"),
+		("7e",  "7ᵉ"),
+		("8e",  "8ᵉ"),
+		("9e",  "9ᵉ"),
+
+		("#0e",  "0ᵉ"),
+		("#1e",  "1ᵉ"),
+		("#2e",  "2ᵉ"),
+		("#3e",  "3ᵉ"),
+		("#4e",  "4ᵉ"),
+		("#5e",  "5ᵉ"),
+		("#6e",  "6ᵉ"),
+		("#7e",  "7ᵉ"),
+		("#8e",  "8ᵉ"),
+		("#9e",  "9ᵉ"),
+
+		("2è",  "2ᵉ"),
+		("3è",  "3ᵉ"),
+		("4è",  "4ᵉ"),
+		("5è",  "5ᵉ"),
+		("6è",  "6ᵉ"),
+		("7è",  "7ᵉ"),
+		("8è",  "8ᵉ"),
+		("9è",  "9ᵉ"),
+
+		("#0è",  "0ᵉ"),
+		("#1è",  "1ᵉ"),
+		("#2è",  "2ᵉ"),
+		("#3è",  "3ᵉ"),
+		("#4è",  "4ᵉ"),
+		("#5è",  "5ᵉ"),
+		("#6è",  "6ᵉ"),
+		("#7è",  "7ᵉ"),
+		("#8è",  "8ᵉ"),
+		("#9è",  "9ᵉ"),
 
 		// Cédille
 		("ca", "ça"),
@@ -176,6 +245,7 @@ fn replace_one(text: &str) -> String {
 		("Ecout*",     "Écout"),
 		("Ecras*",     "Écras"),
 		("Ecris*",     "Écris"),
+		("Ecume",      "Écume"),
 		("Edition",    "Édition"),
 		("Egoïste",    "Égoïste"),
 		("Egypt*",     "Égypt"),
@@ -286,6 +356,7 @@ fn replace_one(text: &str) -> String {
 		("Tous les 2", "Tous les deux"),
 		("J'ai du vérifier", "J'ai dû vérifier"),
 		("c'est règlé", "c'est réglé"),
+		("Quelque soient", "Quels que soient"),
 
 		// Sûr
 		("Je suis sur qu'*", "Je suis sûr qu'"),
@@ -335,6 +406,9 @@ fn test_replace_one() {
 	assert_eq!(replace_one("manoeuvrer"), "manœuvrer");
 	assert_eq!(replace_one("Etiez-vous"), "Étiez-vous");
 	assert_eq!(replace_one("des qu'il"), "dès qu'il");
+	assert_eq!(replace_one("10ème"), "10ᵉ");
+	assert_eq!(replace_one("10e"), "10ᵉ");
+	assert_eq!(replace_one("10è"), "10ᵉ");
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -483,7 +557,7 @@ fn test_parse_app_args() {
 fn main() {
 	let mut args = env::args();
 	if args.len() == 1 {
-		println!("fixsrt v10 - Hadrien Nilsson - 2016");
+		println!("fixsrt v12 - Hadrien Nilsson - 2016");
 		println!("usage: fixsrt [-nobak] SRTFILE [SRTFILE2 [SRTFILE3 [...]]] [-out OUTFILE]");
 		std::process::exit(0);
 	}
