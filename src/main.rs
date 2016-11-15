@@ -4,7 +4,7 @@ mod workfile;
 mod srt;
 
 fn is_separator(c: char) -> bool {
-	return c == ' ' || c == '\u{A0}' || c == '.' || c == ',';
+	return c == ' ' || c == '\u{A0}' || c == '.' || c == ',' || c == '"';
 }
 
 fn is_letter(c: char) -> bool {
@@ -284,6 +284,7 @@ fn replace_one(text: &str) -> String {
 		("A commencer", "À commencer"),
 		("A condition", "À condition"),
 		("A croire",    "À croire"),
+		("A courir",    "À courir"),
 		("A demain",    "À demain"),
 		("A déplacer",  "À déplacer"),
 		("A des",       "À des"),
@@ -328,7 +329,8 @@ fn replace_one(text: &str) -> String {
 		("A vrai dire", "À vrai dire"),
 		("A vendredi",  "À vendredi"),
 		
-		// Ligature œ	
+		// Ligature œ
+		("boeuf",     "bœuf"),
 		("coeur",     "cœur"),
 		("coeurs",    "cœurs"),
 		("oeuf",      "œuf"),
@@ -409,6 +411,7 @@ fn test_replace_one() {
 	assert_eq!(replace_one("10ème"), "10ᵉ");
 	assert_eq!(replace_one("10e"), "10ᵉ");
 	assert_eq!(replace_one("10è"), "10ᵉ");
+	assert_eq!(replace_one("\"Oeil pour oeil\""), "\"Œil pour œil\"");
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -557,7 +560,7 @@ fn test_parse_app_args() {
 fn main() {
 	let mut args = env::args();
 	if args.len() == 1 {
-		println!("fixsrt v12 - Hadrien Nilsson - 2016");
+		println!("fixsrt v13 - Hadrien Nilsson - 2016");
 		println!("usage: fixsrt [-nobak] SRTFILE [SRTFILE2 [SRTFILE3 [...]]] [-out OUTFILE]");
 		std::process::exit(0);
 	}
