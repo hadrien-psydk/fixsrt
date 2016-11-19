@@ -4,7 +4,9 @@ mod workfile;
 mod srt;
 
 fn is_separator(c: char) -> bool {
-	return c == ' ' || c == '\u{A0}' || c == '.' || c == ',' || c == '"';
+	return c == ' ' || c == '\u{A0}'
+	 || c == '.' || c == ','
+	 || c == '"' || c == '-';
 }
 
 fn is_letter(c: char) -> bool {
@@ -252,11 +254,13 @@ fn replace_one(text: &str) -> String {
 		("Egalement",  "Également"),
 		("Egoïste",    "Égoïste"),
 		("Egypte",     "Égypte"),
+		("Egyptien*",  "Égyptien"),
 		("Elevé",      "Élevé"),
 		("Eloign*",    "Éloign"),
-		("Etat",       "État"),
+		("Etaient",    "Étaient"),
 		("Etais",      "Étais"),
 		("Etant",      "Étant"),
+		("Etat",       "État"),
 		("Eteins ça",  "Éteins ça"),
 		("Eteins-moi", "Éteins-moi"),
 		("Eteins le",  "Éteins le"),
@@ -335,6 +339,7 @@ fn replace_one(text: &str) -> String {
 		
 		// Ligature œ
 		("boeuf",     "bœuf"),
+		("Coeur",     "Cœur"),
 		("coeur",     "cœur"),
 		("coeurs",    "cœurs"),
 		("oeuf",      "œuf"),
@@ -416,6 +421,7 @@ fn test_replace_one() {
 	assert_eq!(replace_one("10e"), "10ᵉ");
 	assert_eq!(replace_one("10è"), "10ᵉ");
 	assert_eq!(replace_one("\"Oeil pour oeil\""), "\"Œil pour œil\"");
+	assert_eq!(replace_one("Etaient-ils"), "Étaient-ils");
 }
 
 ///////////////////////////////////////////////////////////////////////////////
