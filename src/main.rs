@@ -18,8 +18,8 @@ fn is_digit(c: char) -> bool {
 	return c.is_digit(10);
 }
 
-struct Text {
-	line: String
+fn find_start_at(slice: &str, pat: &str, start_at: usize) -> Option<usize> {
+    slice[start_at..].find(pat).map(|i| start_at + i)
 }
 
 #[derive(Debug)]
@@ -30,143 +30,137 @@ enum Follow {
 	Digit
 }
 
-impl Text {
-	// Replaces a word or multiple words.
-	// - If the word to search starts or ends with a *:
-	//   a separator or letter can precede or follow
-	// - If the word to search starts or ends with a +:
-	//   a letter can precede or follow
-	// - If the word to search starts or ends with a #:
-	//   a digit can precede or follow
-	// - If the word to search does not:
-	//   only a separator can precede or follow
-	fn replace(&mut self, what: &str, with: &str) {
-		self.line = {
-			let mut new_line = String::new(); // Result
-			let mut line_str = self.line.as_str(); // Current piece of text
+// Replaces a word or multiple words.
+// - If the word to search starts or ends with a *:
+//   a separator or letter can precede or follow
+// - If the word to search starts or ends with a +:
+//   a letter can precede or follow
+// - If the word to search starts or ends with a #:
+//   a digit can precede or follow
+// - If the word to search does not:
+//   only a separator can precede or follow
+fn replace_by_rule(line_str: &str, what: &str, with: &str) -> String {
+	let mut new_line = String::new(); // Result
 
-			// First check if the text to search ends with a star.
-			let (what_no_star_after, follow) = {
-				if what.ends_with("*") {
-					(&what[..what.len()-1], Follow::Any)
-				}
-				else if what.ends_with("+") {
-					(&what[..what.len()-1], Follow::Letter)
-				}
-				else if what.ends_with("#") {
-					(&what[..what.len()-1], Follow::Digit)
-				}
-				else {
-					(what, Follow::Nothing)
-				}
-			};
+	// First check if the text to search ends with a star.
+	let (what_no_star_after, follow) = {
+		if what.ends_with("*") {
+			(&what[..what.len()-1], Follow::Any)
+		}
+		else if what.ends_with("+") {
+			(&what[..what.len()-1], Follow::Letter)
+		}
+		else if what.ends_with("#") {
+			(&what[..what.len()-1], Follow::Digit)
+		}
+		else {
+			(what, Follow::Nothing)
+		}
+	};
 
-			let (what_no_star, precede) = {
-				if what_no_star_after.starts_with("*") {
-					(&what_no_star_after[1..], Follow::Any)
-				}
-				else if what_no_star_after.starts_with("+") {
-					(&what_no_star_after[1..], Follow::Letter)
-				}
-				else if what_no_star_after.starts_with("#") {
-					(&what_no_star_after[1..], Follow::Digit)
-				}
-				else {
-					(what_no_star_after, Follow::Nothing)
-				}
-			};
-			/*
-			println!("what: {} what_no_star: {} precede: {:?} follow: {:?}",
-				what, what_no_star, precede, follow);*/
+	let (what_no_star, precede) = {
+		if what_no_star_after.starts_with("*") {
+			(&what_no_star_after[1..], Follow::Any)
+		}
+		else if what_no_star_after.starts_with("+") {
+			(&what_no_star_after[1..], Follow::Letter)
+		}
+		else if what_no_star_after.starts_with("#") {
+			(&what_no_star_after[1..], Follow::Digit)
+		}
+		else {
+			(what_no_star_after, Follow::Nothing)
+		}
+	};
+	/*	
+	println!("what: {} what_no_star: {} precede: {:?} follow: {:?}",
+		what, what_no_star, precede, follow);*/
 
-			loop {
-				// Perform a simple string search first, then look at the result
-				// more precisely
-				match line_str.find(what_no_star) {
+	let mut start_at = 0;
+	loop {
+		// Perform a simple string search first, then look at the result
+		// more precisely
+		match find_start_at(line_str, what_no_star, start_at) {
+			None => {
+				new_line.push_str(&line_str[start_at..]);
+				break;
+			},
+			Some(index) => {
+				// Found! Verify the characters around to know if it is really a word
 
-					None => {
-						new_line.push_str(line_str);
-						break;
+				// Look also the previous char, we do not want to replace text in the
+				// middle of a word. We accept ' as prev char too (not as next char).
+				let prev_char = line_str[0..index].chars().last();
+				let do_replace1 = match prev_char {
+					Some(c) => match precede {
+						Follow::Nothing => !is_letter(c) || (c == '\''),
+						Follow::Any => true,
+						Follow::Letter => is_letter(c),
+						Follow::Digit => is_digit(c)
 					},
-					Some(index) => {
-						// Found! Verify the characters around to know if it is really a word
+					None => true // Beginning of the line
+				};
 
-						// Look also the previous char, we do not want to replace text in the
-						// middle of a word. We accept ' as prev char too (not as next char).
-						let prev_char = line_str[0..index].chars().last();
-						let do_replace1 = match prev_char {
-							Some(c) => match precede {
-								Follow::Nothing => !is_letter(c) || (c == '\''),
-								Follow::Any => true,
-								Follow::Letter => is_letter(c),
-								Follow::Digit => is_digit(c)
-							},
-							None => true // Beginning of the line
-						};
+				// Now, next char
+				let next_char = line_str[index + what_no_star.len()..].chars().next();
+				let do_replace2 = match next_char {
+					Some(c) => match follow {
+						Follow::Nothing => is_separator(c),
+						Follow::Any => true,
+						Follow::Letter => is_letter(c),
+						Follow::Digit => is_digit(c)
+					},
+					None => true
+				};
 
-						// Now, next char
-						let next_char = line_str[index + what_no_star.len()..].chars().next();
-						let do_replace2 = match next_char {
-							Some(c) => match follow {
-								Follow::Nothing => is_separator(c),
-								Follow::Any => true,
-								Follow::Letter => is_letter(c),
-								Follow::Digit => is_digit(c)
-							},
-							None => true
-						};
+				// Poor man debugger
+				/*
+				println!("line: '{}' index: {} prev_char: {:?} next_char: {:?} r1: {} r2: {}",
+					line_str, index, prev_char, next_char,
+					do_replace1, do_replace2);*/
 
-						// Poor man debugger
-						/*
-						println!("line: '{}' index: {} prev_char: {:?} next_char: {:?} r1: {} r2: {}",
-							line_str, index, prev_char, next_char,
-							do_replace1, do_replace2);*/
+				new_line.push_str(&line_str[start_at..index]);
+				start_at = index + what_no_star.len();
+				let end_reached = start_at >= line_str.len();
 
-						let (left, right) = line_str.split_at(index);
-						new_line.push_str(left);
-						line_str = &right[what_no_star.len()..];
-						let end_reached = line_str.is_empty();
-
-						if do_replace1 && do_replace2 {
-							// Replace the found text but verify if we are at the
-							// end of a line and the "with" text ends with a space
-							let with2 = if end_reached && with.ends_with(' ') {
-								&with[0..with.len()-1]
-							}
-							else {
-								with
-							};
-							new_line.push_str(with2);
-						}
-						else {
-							new_line.push_str(what_no_star);
-						}
-						
-						if end_reached {
-							break;
-						}
+				if do_replace1 && do_replace2 {
+					// Replace the found text but verify if we are at the
+					// end of a line and the "with" text ends with a space
+					let with2 = if end_reached && with.ends_with(' ') {
+						&with[0..with.len()-1]
 					}
+					else {
+						with
+					};
+					new_line.push_str(with2);
+				}
+				else {
+					new_line.push_str(what_no_star);
+				}
+				
+				if end_reached {
+					break;
 				}
 			}
-			new_line
-		};
+		}
 	}
+	new_line
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+// Replaces words in one line of text based on rules
 fn replace_one(text: &str) -> String {
-	let mut t = Text { line: text.to_string() };
+	let mut result = text.to_string();
 
 	for rule_ref in rules::RULES_FR.iter() {
 		let &(what, with) = rule_ref;
-		t.replace(what, with);
+		result = replace_by_rule(&result, what, with);
 	}
-
-	t.line
+	result
 }
 
 #[test]
-fn test_replace_one() {/*
+fn test_replace_one() {
 	assert_eq!(replace_one("Ca va"), "Ça va");
 	assert_eq!(replace_one("Ca."), "Ça.");
 	assert_eq!(replace_one("Ca"), "Ça");
@@ -195,8 +189,8 @@ fn test_replace_one() {/*
 	assert_eq!(replace_one("10e"), "10ᵉ");
 	assert_eq!(replace_one("10è"), "10ᵉ");
 	assert_eq!(replace_one("\"Oeil pour oeil\""), "\"Œil pour œil\"");
-	assert_eq!(replace_one("Etaient-ils"), "Étaient-ils");*/
-	//assert_eq!(replace_one("caca"), "caca");
+	assert_eq!(replace_one("Etaient-ils"), "Étaient-ils");
+	assert_eq!(replace_one("caca"), "caca");
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -345,7 +339,7 @@ fn test_parse_app_args() {
 fn main() {
 	let mut args = env::args();
 	if args.len() == 1 {
-		println!("fixsrt v13 - Hadrien Nilsson - 2016");
+		println!("fixsrt v14 - Hadrien Nilsson - 2016/2017");
 		println!("usage: fixsrt [-nobak] SRTFILE [SRTFILE2 [SRTFILE3 [...]]] [-out OUTFILE]");
 		std::process::exit(0);
 	}
