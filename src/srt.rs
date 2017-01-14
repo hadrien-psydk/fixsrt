@@ -58,8 +58,13 @@ pub fn parse_srt(content: &str) -> Result<Vec<Subtitle>,String> {
 
 	let mut subtitle: Subtitle = Default::default();
 	let mut line_num = 1;
-	for line in content.lines() {
+	for line_ori in content.lines() {
 		//println!("[{:?}] {}", state, line);
+		
+		// We may encounter a fake empty line, so trim the line before
+		// looking at it
+		let line = line_ori.trim_right();
+
 		match state {
 			State::WantsNum => {
 				if line.is_empty() {
@@ -130,7 +135,8 @@ pub fn parse_srt(content: &str) -> Result<Vec<Subtitle>,String> {
 				}
 				else {
 					if subtitle.push_text(line) {
-						return Err(format!("Too much text at line {}", line_num));
+						return Err(format!("Too much text at line {} sub {}",
+							line_num, subtitle.num));
 					}
 				}
 			}
@@ -243,6 +249,28 @@ end"#;
 		assert_eq!(subs[0].text_count, 1);
 		assert_eq!(subs[0].texts[0], "begin");
 		assert_eq!(subs[1].num, 52);
+		assert_eq!(subs[1].text_count, 1);
+		assert_eq!(subs[1].texts[0], "end");
+	}
+
+	///////////////////////////////////
+	// Fake empty line (contains spaces)
+	{
+		let srt = r#"61
+00:00:16,087 --> 00:00:19,911
+begin
+   
+62
+00:00:20,000 --> 00:00:21,000
+end"#;
+		let subs_res = parse_srt(srt);
+		assert!(subs_res.is_ok(), format!("{}", subs_res.err().unwrap()) );
+		let subs = subs_res.unwrap();
+		assert_eq!(subs.len(), 2);
+		assert_eq!(subs[0].num, 61);
+		assert_eq!(subs[0].text_count, 1);
+		assert_eq!(subs[0].texts[0], "begin");
+		assert_eq!(subs[1].num, 62);
 		assert_eq!(subs[1].text_count, 1);
 		assert_eq!(subs[1].texts[0], "end");
 	}
