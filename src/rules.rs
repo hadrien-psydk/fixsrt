@@ -1,4 +1,4 @@
-pub static RULES_FR: &'static [(&'static str, &'static str)] = &[
+pub const RULES_FR: &'static [(&'static str, &'static str)] = &[
 	// Trop d'espaces
 	("  ", " "),
 
