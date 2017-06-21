@@ -339,7 +339,7 @@ fn test_parse_app_args() {
 fn main() {
 	let mut args = env::args();
 	if args.len() == 1 {
-		println!("fixsrt v14 - Hadrien Nilsson - 2016/2017");
+		println!("fixsrt v15 - Hadrien Nilsson - 2016/2017");
 		println!("usage: fixsrt [-nobak] SRTFILE [SRTFILE2 [SRTFILE3 [...]]] [-out OUTFILE]");
 		std::process::exit(0);
 	}

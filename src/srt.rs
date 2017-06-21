@@ -58,6 +58,7 @@ pub fn parse_srt(content: &str) -> Result<Vec<Subtitle>,String> {
 
 	let mut subtitle: Subtitle = Default::default();
 	let mut line_num = 1;
+	let mut sub_num = 1;
 	for line_ori in content.lines() {
 		//println!("[{:?}] {}", state, line);
 		
@@ -72,13 +73,16 @@ pub fn parse_srt(content: &str) -> Result<Vec<Subtitle>,String> {
 					// Stay in the WantsNum state
 				}
 				else {
+					/*
 					subtitle.num = match u32::from_str(&line) {
 						Ok(val) => val,
 						Err(err) => {
 							return Err(format!("Bad number at line {}: {}: '{}'",
 								line_num, err, line));
 						}
-					};
+					};*/
+					subtitle.num = sub_num;
+					sub_num += 1;
 					state = State::WantsDuration;
 				}
 			},

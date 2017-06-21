@@ -158,6 +158,7 @@ pub const RULES_FR: &'static [(&'static str, &'static str)] = &[
 	("A peine",    "À peine"),
 	("A peu près", "À peu près"),
 	("A plus",     "À plus"),
+	("A partir",   "À partir"),
 	("A présent",  "À présent"),
 	("A propos",   "À propos"),
 	("A quelle",   "À quelle"),
