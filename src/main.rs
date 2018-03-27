@@ -72,7 +72,7 @@ fn replace_by_rule(line_str: &str, what: &str, with: &str) -> String {
 			(what_no_star_after, Follow::Nothing)
 		}
 	};
-	/*	
+	/*
 	println!("what: {} what_no_star: {} precede: {:?} follow: {:?}",
 		what, what_no_star, precede, follow);*/
 
@@ -137,7 +137,7 @@ fn replace_by_rule(line_str: &str, what: &str, with: &str) -> String {
 				else {
 					new_line.push_str(what_no_star);
 				}
-				
+
 				if end_reached {
 					break;
 				}
@@ -281,6 +281,7 @@ fn parse_app_args(args: Vec<String>) -> Result<AppArgs, String> {
 	Ok(app_args)
 }
 
+#[test]
 macro_rules! string_vec {
     ( $( $x:expr ),* ) => {
         {
@@ -376,7 +377,7 @@ fn main() {
 				Err(err) => println!("Cannot create backup: {}", err)
 			}
 		}
-		
+
 		let out_file_path = if app_args.out_file_path.is_empty() {
 			&in_file_path
 		}
