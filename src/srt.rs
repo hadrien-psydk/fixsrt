@@ -58,10 +58,10 @@ pub fn parse_srt(content: &str) -> Result<Vec<Subtitle>,String> {
 
 	let mut subtitle: Subtitle = Default::default();
 	let mut line_num = 1;
-	let mut sub_num = 1;
+
 	for line_ori in content.lines() {
 		//println!("[{:?}] {}", state, line);
-		
+
 		// We may encounter a fake empty line, so trim the line before
 		// looking at it
 		let line = line_ori.trim_right();
@@ -73,16 +73,13 @@ pub fn parse_srt(content: &str) -> Result<Vec<Subtitle>,String> {
 					// Stay in the WantsNum state
 				}
 				else {
-					/*
 					subtitle.num = match u32::from_str(&line) {
 						Ok(val) => val,
 						Err(err) => {
 							return Err(format!("Bad number at line {}: {}: '{}'",
 								line_num, err, line));
 						}
-					};*/
-					subtitle.num = sub_num;
-					sub_num += 1;
+					};
 					state = State::WantsDuration;
 				}
 			},
@@ -172,8 +169,8 @@ mango"#;
 		let subs_res = parse_srt(srt);
 		assert!(subs_res.is_ok(), format!("{}", subs_res.err().unwrap()) );
 		let subs = subs_res.unwrap();
-		assert!(subs.len() == 2);
-		assert!(subs[0].num == 42);
+		assert_eq!(subs.len(), 2);
+		assert_eq!(subs[0].num, 42);
 		assert!(subs[0].text_count == 1);
 		assert!(subs[0].texts[0] == "suspicious empty line above");
 		assert!(subs[1].num == 43);
@@ -192,7 +189,7 @@ hello"#;
 		let subs = subs_res.unwrap();
 		assert!(subs.len() == 1);
 	}
-	
+
 	///////////////////////////////////
 	// Two lines of text
 	{
@@ -263,7 +260,7 @@ end"#;
 		let srt = r#"61
 00:00:16,087 --> 00:00:19,911
 begin
-   
+
 62
 00:00:20,000 --> 00:00:21,000
 end"#;
@@ -294,7 +291,7 @@ const W1252_80_9F: [char; 32] = [
 
 fn decode_windows_1252(content: &[u8]) -> String {
 	let mut ret = String::with_capacity(content.len() * 2);
-	
+
 	for cp8 in content {
 		let c = if 0x80 <= *cp8 && *cp8 <= 0x9f {
 			W1252_80_9F[(*cp8 as usize) - 0x80]

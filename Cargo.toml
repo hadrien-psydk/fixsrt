@@ -1,6 +1,7 @@
 [package]
 name = "fixsrt"
-version = "0.1.0"
-authors = ["Hadrien Nilsson <github@psydk.org>"]
+version = "16.0.0"
+authors = ["Hadrien Nilsson <hadrien@psydk.org>"]
 
 [dependencies]
+clap = "2.26.0"
