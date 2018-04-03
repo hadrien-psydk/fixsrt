@@ -6,6 +6,8 @@ mod workfile;
 mod srt;
 mod rules;
 
+const VERSION: &'static str = env!("CARGO_PKG_VERSION");
+
 fn is_separator(c: char) -> bool {
 	return c == ' ' || c == '\u{A0}'
 	 || c == '.' || c == ','
@@ -208,11 +210,10 @@ fn do_replacements(subtitles: &mut Vec<srt::Subtitle>) {
 ///////////////////////////////////////////////////////////////////////////////
 fn main() {
 	let matches = App::new("fixsrt")
-		.version("16.0")
+		.version(VERSION)
 		.author("Hadrien Nilsson")
 		.about("Fix spelling and encoding mistakes in SRT subtitle files")
 		.arg(Arg::with_name("nobak")
-			.short("nobak")
 			.long("nobak")
 			.help("Avoids creating a backup file"))
 		.arg(Arg::with_name("SRTFILE")
