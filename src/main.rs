@@ -37,7 +37,6 @@ fn do_time_changes(subtitles: &mut Vec<srt::Subtitle>,
 
 ///////////////////////////////////////////////////////////////////////////////
 fn main() {
-	assert_eq!(srt::parse_srt_time("1.247"), Some(1247));
 
 	let matches = App::new("fixsrt")
 		.version(VERSION)

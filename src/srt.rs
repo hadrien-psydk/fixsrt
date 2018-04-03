@@ -421,34 +421,20 @@ pub fn save_subtitles(subtitles: &Vec<Subtitle>, file_path: &str) -> io::Result<
 // "," can be used insted of "."
 //
 // Returns a number of milliseconds
-pub fn parse_srt_time(tos: &str) -> Option<i32> {
+pub fn parse_srt_time(time_str: &str) -> Option<i32> {
 	
 	const MAX_DEC_DIGITS: usize = 3;
 	const TEN_POW: &'static [i32] = &[1, 10, 100, 1000];
 
-	let mut input_chars = tos.chars().peekable();
 	let mut frag_index = 0;
 	let mut frag_len = 0;
 	let mut frags = [0i32;4];
-	let mut has_milliseconds = false;
+	let mut milliseconds_str = "";
 
 	// H:M:S
-	loop {
-		let c = {
-			let c_opt = input_chars.peek();
-			if c_opt.is_none() {
-				//return None; // End of string
-				break;
-			}
-			let c_ref = c_opt.unwrap();
-			*c_ref
-		};
-		input_chars.next();
-
-		let max_digits = 2;
-
+	for (i, c) in time_str.chars().enumerate() {
 		if c.is_digit(10) {
-			if frag_len < max_digits {
+			if frag_len < 2 {
 				frags[frag_index] *= 10;
 				frags[frag_index] += c.to_digit(10).unwrap() as i32;
 				frag_len += 1;
@@ -468,7 +454,7 @@ pub fn parse_srt_time(tos: &str) -> Option<i32> {
 				frag_len = 0;
 			}
 			else if c == '.' || c == ',' {
-				has_milliseconds = true;
+				milliseconds_str = &time_str[i + 1..];
 				break;
 			}
 			else
@@ -494,31 +480,13 @@ pub fn parse_srt_time(tos: &str) -> Option<i32> {
 	}
 
 	// Milliseconds
-	if has_milliseconds {
+	if milliseconds_str.len() > 0 {
 		frag_index = 3;
 		frag_len = 0;
-		loop {
-			let c = {
-				let c_opt = input_chars.peek();
-				if c_opt.is_none() {
-					// End of string
 
-					// Adjust milliseconds
-					if frag_len < MAX_DEC_DIGITS {
-						frags[3] *= TEN_POW[MAX_DEC_DIGITS - frag_len];
-					}
-
-					break;
-				}
-				let c_ref = c_opt.unwrap();
-				*c_ref
-			};
-			input_chars.next();
-
-			let max_digits = MAX_DEC_DIGITS;
-
+		for c in milliseconds_str.chars() {
 			if c.is_digit(10) {
-				if frag_len < max_digits {
+				if frag_len < MAX_DEC_DIGITS {
 					frags[frag_index] *= 10;
 					frags[frag_index] += c.to_digit(10).unwrap() as i32;
 					frag_len += 1;
@@ -531,6 +499,10 @@ pub fn parse_srt_time(tos: &str) -> Option<i32> {
 				// Parse error
 				return None;
 			}
+		}
+		// Adjust number of digits
+		if frag_len < MAX_DEC_DIGITS {
+			frags[3] *= TEN_POW[MAX_DEC_DIGITS - frag_len];
 		}
 	}
 
