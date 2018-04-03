@@ -11,6 +11,7 @@ const VERSION: &'static str = env!("CARGO_PKG_VERSION");
 
 ///////////////////////////////////////////////////////////////////////////////
 fn do_replacements(subtitles: &mut Vec<srt::Subtitle>) {
+
 	for subtitle in subtitles.iter_mut() {
 		for text_index in 0..subtitle.text_count as usize {
 			subtitle.texts[text_index] = txt_rep::replace_one(&subtitle.texts[text_index]);
@@ -19,8 +20,25 @@ fn do_replacements(subtitles: &mut Vec<srt::Subtitle>) {
 	}
 }
 
+fn do_time_changes(subtitles: &mut Vec<srt::Subtitle>,
+                   time_shift_ms: i32, time_stretch_ms: i32) {
+
+	if time_shift_ms == 0 && time_stretch_ms == 0 {
+		return;
+	}
+	for subtitle in subtitles.iter_mut() {
+		for text_index in 0..subtitle.text_count as usize {
+			subtitle.texts[text_index] = txt_rep::replace_one(&subtitle.texts[text_index]);
+		}
+		//print!("{}", subtitle.to_string());
+	}
+}
+
+
 ///////////////////////////////////////////////////////////////////////////////
 fn main() {
+	assert_eq!(srt::parse_srt_time("1.247"), Some(1247));
+
 	let matches = App::new("fixsrt")
 		.version(VERSION)
 		.author("Hadrien Nilsson")
@@ -37,15 +55,47 @@ fn main() {
 			.long("out")
 			.takes_value(true)
 			.help("Outputs to another file (single input only)"))
+		.arg(Arg::with_name("time-shift")
+			.long("time-shift")
+			.takes_value(true)
+			.help("Shifts all subtitles of several seconds"))
+		.arg(Arg::with_name("time-stretch")
+			.long("time-stretch")
+			.takes_value(true)
+			.help("Stretches all subtitles after adding several seconds to the last one"))
 		.get_matches();
 
 	let no_backup = matches.is_present("nobak");
 	let in_file_paths: Vec<_> = matches.values_of("SRTFILE").unwrap().collect();
 	let out_file_path = matches.value_of("out");
+	let time_shift_ms = match matches.value_of("time-shift") {
+		Some(tos) => match srt::parse_srt_time(tos) {
+			Some(tos_ms) => tos_ms,
+			None => {
+				let err = Error { message: "--time-shift invalid argument".into(),
+					kind: clap::ErrorKind::TooManyValues,
+					info: None };
+				err.exit();
+			}
+		},
+		None => 0
+	};
+	let time_stretch_ms = match matches.value_of("time-stretch") {
+		Some(tos) => match srt::parse_srt_time(tos) {
+			Some(tos_ms) => tos_ms,
+			None => {
+				let err = Error { message: "--time-stretch invalid argument".into(),
+					kind: clap::ErrorKind::TooManyValues,
+					info: None };
+				err.exit();
+			}
+		},
+		None => 0
+	};
 
 	// Additional check. Is there a way to do it with clap?
 	if out_file_path.is_some() && in_file_paths.len() > 1 {
-		let err = Error { message: "-out works only with single input".into(),
+		let err = Error { message: "--out works only with single input".into(),
 			kind: clap::ErrorKind::TooManyValues,
 			info: None};
 		err.exit();
@@ -66,6 +116,7 @@ fn main() {
 
 		let mut subtitles = subtitles_res.unwrap();
 		do_replacements(&mut subtitles);
+		do_time_changes(&mut subtitles, time_shift_ms, time_stretch_ms);
 
 		// Do backup
 		if !no_backup {

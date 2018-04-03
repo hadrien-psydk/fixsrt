@@ -1,3 +1,4 @@
+use std;
 use std::io;
 use std::io::prelude::*;
 use std::str::FromStr;
@@ -408,4 +409,156 @@ pub fn save_subtitles(subtitles: &Vec<Subtitle>, file_path: &str) -> io::Result<
 	}
 	work_file.commit();
 	Ok(())
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// Parses a time expressed as an optional sign, a number of second and a
+// fraction of seconds. Examples:
+// 42.123
+// +42.123
+// -42.123
+// 42.5
+// "," can be used insted of "."
+//
+// Returns a number of milliseconds
+pub fn parse_srt_time(tos: &str) -> Option<i32> {
+	
+	const MAX_DEC_DIGITS: usize = 3;
+	const TEN_POW: &'static [i32] = &[1, 10, 100, 1000];
+
+	let mut input_chars = tos.chars().peekable();
+	let mut frag_index = 0;
+	let mut frag_len = 0;
+	let mut frags = [0i32;4];
+	let mut has_milliseconds = false;
+
+	// H:M:S
+	loop {
+		let c = {
+			let c_opt = input_chars.peek();
+			if c_opt.is_none() {
+				//return None; // End of string
+				break;
+			}
+			let c_ref = c_opt.unwrap();
+			*c_ref
+		};
+		input_chars.next();
+
+		let max_digits = 2;
+
+		if c.is_digit(10) {
+			if frag_len < max_digits {
+				frags[frag_index] *= 10;
+				frags[frag_index] += c.to_digit(10).unwrap() as i32;
+				frag_len += 1;
+			}
+			else {
+				return None; // Parse error: too many digits
+			}
+		}
+		else {
+			if frag_len == 0 {
+				// No digit found, refuse the input
+				return None;
+			}
+			if c == ':' {
+				// Next frag
+				frag_index += 1;
+				frag_len = 0;
+			}
+			else if c == '.' || c == ',' {
+				has_milliseconds = true;
+				break;
+			}
+			else
+			{
+				// Parse error
+				return None;
+			}
+		}
+	}
+
+	// Adjust for missing frags
+	if frag_index == 0 {
+		// H:M missing
+		frags[2] = frags[0];
+		frags[1] = 0;
+		frags[0] = 0;
+	}
+	else if frag_index == 1 {
+		// H missing
+		frags[2] = frags[1];
+		frags[1] = frags[0];
+		frags[0] = 0;
+	}
+
+	// Milliseconds
+	if has_milliseconds {
+		frag_index = 3;
+		frag_len = 0;
+		loop {
+			let c = {
+				let c_opt = input_chars.peek();
+				if c_opt.is_none() {
+					// End of string
+
+					// Adjust milliseconds
+					if frag_len < MAX_DEC_DIGITS {
+						frags[3] *= TEN_POW[MAX_DEC_DIGITS - frag_len];
+					}
+
+					break;
+				}
+				let c_ref = c_opt.unwrap();
+				*c_ref
+			};
+			input_chars.next();
+
+			let max_digits = MAX_DEC_DIGITS;
+
+			if c.is_digit(10) {
+				if frag_len < max_digits {
+					frags[frag_index] *= 10;
+					frags[frag_index] += c.to_digit(10).unwrap() as i32;
+					frag_len += 1;
+				}
+				else {
+					return None; // Parse error: too many digits
+				}
+			}
+			else {
+				// Parse error
+				return None;
+			}
+		}
+	}
+
+	// Combine all fragments
+	let mut r: i64 = frags[0] as i64;
+	r += (frags[0] * 60 * 60) as i64;
+	r += (frags[1] * 60) as i64;
+	r += frags[2] as i64;
+	r *= TEN_POW[3] as i64;
+	r += frags[3] as i64;
+
+    if !(std::i32::MIN as i64 <= r && r <= std::i32::MAX as i64) {
+        None
+    } else {
+        Some(r as i32)
+    }
+}
+
+#[test]
+fn test_parse_time_offset() {
+	assert_eq!(parse_srt_time("42"), Some(42000));
+	assert_eq!(parse_srt_time("1.247"), Some(1247));
+	assert_eq!(parse_srt_time("."), None);
+	assert_eq!(parse_srt_time("0"), Some(0));
+	assert_eq!(parse_srt_time("0."), Some(0));
+	assert_eq!(parse_srt_time("0.2"), Some(200));
+	assert_eq!(parse_srt_time("0.23"), Some(230));
+	assert_eq!(parse_srt_time("0.234"), Some(234));
+	assert_eq!(parse_srt_time("0.2345"), None);
+	assert_eq!(parse_srt_time("14,28"), Some(14280));
 }
