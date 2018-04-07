@@ -16,9 +16,9 @@ srt file, use the --out option.
 
 ## How to build on Linux
 
-Install the Rust compiler and the Cargo build utility:
+Install the Cargo build utility that comes with the Rust compiler:
 ```
-sudo apt install rustc cargo
+sudo apt install cargo
 ```
 Clone the repository:
 ```
