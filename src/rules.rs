@@ -228,3 +228,18 @@ pub const RULES_FR: &'static [(&'static str, &'static str)] = &[
 	// Conjuguaison
 	("Je doit", "Je dois")
 ];
+
+pub const RULES_EN: &'static [(&'static str, &'static str)] = &[
+	// Trop d'espaces
+	("  ", " "),
+
+	// Espace insécable
+	("+\u{A0}!", "!"),
+	("+ !",      "!"),
+	("+\u{A0}?", "?"),
+	("+ ?",      "?"),
+	("+\u{A0}.", "."),
+	("+ .",      "."),
+	("+\u{A0},", ","),
+	("+ ,",      ",")
+];

@@ -145,10 +145,15 @@ fn replace_by_rule(line_str: &str, what: &str, with: &str) -> String {
 
 ///////////////////////////////////////////////////////////////////////////////
 // Replaces words in one line of text based on rules
-pub fn replace_one(text: &str) -> String {
+pub fn replace_one(text: &str, language: &str) -> String {
 	let mut result = text.to_string();
 
-	for rule_ref in rules::RULES_FR.iter() {
+	let mut rule_set = rules::RULES_FR;
+	if language == "EN" {
+		rule_set = rules::RULES_EN;
+	}
+
+	for rule_ref in rule_set.iter() {
 		let &(what, with) = rule_ref;
 		result = replace_by_rule(&result, what, with);
 	}

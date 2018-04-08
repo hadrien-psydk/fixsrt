@@ -10,17 +10,17 @@ mod rules;
 const VERSION: &'static str = env!("CARGO_PKG_VERSION");
 
 ///////////////////////////////////////////////////////////////////////////////
-fn do_replacements(subtitles: &mut Vec<srt::Subtitle>) {
+fn do_replacements(subtitles: &mut Vec<srt::Subtitle>, language: &str) {
 
 	for subtitle in subtitles.iter_mut() {
 		for text_index in 0..subtitle.text_count as usize {
-			subtitle.texts[text_index] = txt_rep::replace_one(&subtitle.texts[text_index]);
+			subtitle.texts[text_index] = txt_rep::replace_one(&subtitle.texts[text_index], &language);
 		}
 		//print!("{}", subtitle.to_string());
 	}
 }
 
-fn do_time_changes(subtitles: &mut Vec<srt::Subtitle>,
+fn do_time_changes(subtitles: &mut Vec<srt::Subtitle>, language: &str,
                    time_shift_ms: i32, time_stretch_ms: i32) {
 
 	if time_shift_ms == 0 && time_stretch_ms == 0 {
@@ -28,7 +28,7 @@ fn do_time_changes(subtitles: &mut Vec<srt::Subtitle>,
 	}
 	for subtitle in subtitles.iter_mut() {
 		for text_index in 0..subtitle.text_count as usize {
-			subtitle.texts[text_index] = txt_rep::replace_one(&subtitle.texts[text_index]);
+			subtitle.texts[text_index] = txt_rep::replace_one(&subtitle.texts[text_index], &language);
 		}
 		//print!("{}", subtitle.to_string());
 	}
@@ -62,6 +62,10 @@ fn main() {
 			.long("time-stretch")
 			.takes_value(true)
 			.help("Stretches all subtitles after adding several seconds to the last one"))
+		.arg(Arg::with_name("lang")
+			.long("lang")
+			.takes_value(true)
+			.help("Selects the language of the SRT file(s) (FR or EN)"))
 		.get_matches();
 
 	let no_backup = matches.is_present("nobak");
@@ -91,6 +95,12 @@ fn main() {
 		},
 		None => 0
 	};
+	let language = matches.value_of("lang").unwrap_or("FR");
+
+	if language != "EN" && language != "FR" {
+		println!("Bad language");
+		std::process::exit(1);
+	}
 
 	// Additional check. Is there a way to do it with clap?
 	if out_file_path.is_some() && in_file_paths.len() > 1 {
@@ -114,8 +124,8 @@ fn main() {
 		}
 
 		let mut subtitles = subtitles_res.unwrap();
-		do_replacements(&mut subtitles);
-		do_time_changes(&mut subtitles, time_shift_ms, time_stretch_ms);
+		do_replacements(&mut subtitles, &language);
+		do_time_changes(&mut subtitles, &language, time_shift_ms, time_stretch_ms);
 
 		// Do backup
 		if !no_backup {
