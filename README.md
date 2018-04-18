@@ -5,7 +5,7 @@ Regarding spelling errors, only french is supported.
 
 Usage:
 ```
-  fixsrt [--nobak] [--out OUTSRTFILE] SRTFILE1 SRTFILE2 ...
+  fixsrt [--nobak] [--out OUTSRTFILE] [--lang LANG] SRTFILE1 SRTFILE2 ...
 ```
 
 By default, fixsrt will do a backup of your srt file (named by using a ~ suffix).
@@ -13,6 +13,8 @@ The --nobak options will prevent fixsrt of doing a backup.
 
 By default, the srt file given as a parameter will be updated. To write to another
 srt file, use the --out option.
+
+The default language is french. To select english, use `--lang en`
 
 ## How to build on Linux
 
