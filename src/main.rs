@@ -41,6 +41,7 @@ fn do_time_changes(subtitles: &mut Vec<srt::Subtitle>,
 		sub_count as i32
 	}
 	else {
+		println!("last not kept");
 		(sub_count - 1) as i32
 	};
 
@@ -50,7 +51,7 @@ fn do_time_changes(subtitles: &mut Vec<srt::Subtitle>,
 		subtitle.time_from += time_shift_ms;
 		subtitle.time_to += time_shift_ms;
 
-		if time_stretch_ms > 0 && sub_count_i32 > 1 {
+		if time_stretch_ms > 0 && sub_count_i32 > 1 && sub_index < sub_count_i32 {
 			let stretching = (sub_index * time_stretch_ms) / (sub_count_i32 - 1);
 			subtitle.time_from += stretching;
 			subtitle.time_to += stretching;
@@ -62,6 +63,7 @@ fn do_time_changes(subtitles: &mut Vec<srt::Subtitle>,
 
 ///////////////////////////////////////////////////////////////////////////////
 fn main() {
+	srt::parse_srt_time("-00:00:10,000");
 
 	let matches = App::new("fixsrt")
 		.version(VERSION)
@@ -97,7 +99,7 @@ fn main() {
 	let in_file_paths: Vec<_> = matches.values_of("SRTFILE").unwrap().collect();
 	let out_file_path = matches.value_of("out");
 	let time_shift_ms = match matches.value_of("shift") {
-		Some(tos) => match srt::parse_srt_time_with_sign(tos) {
+		Some(tos) => match srt::parse_srt_time(tos) {
 			Some(tos_ms) => tos_ms,
 			None => {
 				let err = Error { message: "--shift invalid argument".into(),
@@ -109,7 +111,7 @@ fn main() {
 		None => 0
 	};
 	let time_stretch_ms = match matches.value_of("stretch") {
-		Some(tos) => match srt::parse_srt_time_with_sign(tos) {
+		Some(tos) => match srt::parse_srt_time(tos) {
 			Some(tos_ms) => tos_ms,
 			None => {
 				let err = Error { message: "--stretch invalid argument".into(),

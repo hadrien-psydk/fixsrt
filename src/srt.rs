@@ -98,14 +98,14 @@ pub fn parse_srt(content: &str) -> Result<Vec<Subtitle>,String> {
 				let left = &line[0..arrow_index].trim();
 				let right = &line[arrow_index + 3..].trim();
 
-				subtitle.time_from = match parse_srt_time_with_sign(left) {
+				subtitle.time_from = match parse_srt_time(left) {
 					Some(milli) => milli,
 					None => {
 						return Err(format!("Bad time 'from' at line {}: {}",
 							line_num, left));
 					}
 				};
-				subtitle.time_to = match parse_srt_time_with_sign(right) {
+				subtitle.time_to = match parse_srt_time(right) {
 					Some(milli) => milli,
 					None => {
 						return Err(format!("Bad time 'to' at line {}: {}",
@@ -457,134 +457,110 @@ pub fn parse_srt_time(time_str: &str) -> Option<i32> {
 	}
 
 	const MAX_DEC_DIGITS: usize = 3;
-	const TEN_POW: &'static [i32] = &[1, 10, 100, 1000];
+	const TEN_POW: &'static [u32] = &[1, 10, 100, 1000];
 
 	let mut frag_index = 0;
-	let mut frag_len = 0;
-	let mut frags = [0i32;4];
-	let mut milliseconds_str = "";
+	let mut frag_start = 0;
+	let mut frag_stop = frag_start;
+	let mut frags = ["";4];
 
 	// H:M:S
-	for (i, c) in time_str.chars().enumerate() {
-		if c.is_digit(10) {
-			if frag_len < 2 {
-				frags[frag_index] *= 10;
-				frags[frag_index] += c.to_digit(10).unwrap() as i32;
-				frag_len += 1;
-			}
-			else {
-				return None; // Parse error: too many digits
-			}
+	for c in time_str.chars() {
+		if c == ':' {
+			frags[frag_index] = &time_str[frag_start..frag_stop];
+			// Next frag
+			frag_start = frag_stop + 1;
+			frag_stop = frag_start;
+			frag_index += 1;
 		}
-		else {
-			if frag_len == 0 {
-				// No digit found, refuse the input
-				return None;
-			}
-			if c == ':' {
-				// Next frag
-				frag_index += 1;
-				frag_len = 0;
-			}
-			else if c == '.' || c == ',' {
-				milliseconds_str = &time_str[i + 1..];
-				break;
-			}
-			else
-			{
-				// Parse error
-				return None;
-			}
+		else if c == '.' || c == ',' {
+			frags[3] = &time_str[frag_stop + 1..];
+			break;
+		}
+		else
+		{
+			frag_stop += 1;
 		}
 	}
+
+	// Last H:M:S frag
+	frags[frag_index] = &time_str[frag_start..frag_stop];
 
 	// Adjust for missing frags
 	if frag_index == 0 {
 		// H:M missing
 		frags[2] = frags[0];
-		frags[1] = 0;
-		frags[0] = 0;
+		frags[1] = "";
+		frags[0] = "";
 	}
 	else if frag_index == 1 {
 		// H missing
 		frags[2] = frags[1];
 		frags[1] = frags[0];
-		frags[0] = 0;
+		frags[0] = "";
 	}
 
-	// Milliseconds
-	if milliseconds_str.len() > 0 {
-		frag_index = 3;
-		frag_len = 0;
+	let mut parsed_frags = [0u32;4];
+	let mut empty_count = 0;
+	let mut negative = false;
 
-		for c in milliseconds_str.chars() {
-			if c.is_digit(10) {
-				if frag_len < MAX_DEC_DIGITS {
-					frags[frag_index] *= 10;
-					frags[frag_index] += c.to_digit(10).unwrap() as i32;
-					frag_len += 1;
-				}
-				else {
-					return None; // Parse error: too many digits
-				}
-			}
-			else {
-				// Parse error
-				return None;
-			}
+	for i in 0..frags.len() {
+		parsed_frags[i] = if frags[i].len() == 0 {
+			empty_count += 1;
+			0
 		}
-		// Adjust number of digits
-		if frag_len < MAX_DEC_DIGITS {
-			frags[3] *= TEN_POW[MAX_DEC_DIGITS - frag_len];
+		else {
+			// Skip negative sign, but memorize it for final calculation
+			let first_char = frags[i].chars().next().unwrap();
+			if first_char == '-' {
+				negative = true;
+				frags[i] = &(frags[i])[1..];
+			}
+			match frags[i].parse() {
+				Ok(x) => x,
+				Err(_) => { return None; }
+			}
+		};
+	}
+
+	if empty_count == 4 {
+		return None;
+	}
+
+	// Adjust milliseconds
+	let ms_len = frags[3].len();
+	if ms_len > 0 {
+		if ms_len < MAX_DEC_DIGITS {
+			parsed_frags[3] *= TEN_POW[MAX_DEC_DIGITS - ms_len];
+		}
+		else if ms_len > MAX_DEC_DIGITS {
+			// Too many digits
+			return None;
 		}
 	}
+
+	let hours = parsed_frags[0];
+	let minutes = parsed_frags[1];
+	let seconds = parsed_frags[2];
+	let milliseconds = parsed_frags[3];
 
 	// Combine all fragments
-	let mut r: i64 = frags[0] as i64;
-	r += (frags[0] * 60 * 60) as i64;
-	r += (frags[1] * 60) as i64;
-	r += frags[2] as i64;
+	let mut r: i64 = hours as i64;
+	r += (hours * 60 * 60) as i64;
+	r += (minutes * 60) as i64;
+	r += seconds as i64;
 	r *= TEN_POW[3] as i64;
-	r += frags[3] as i64;
+	r += milliseconds as i64;
+
+	if negative {
+		r = -r;
+	}
 
     if !(std::i32::MIN as i64 <= r && r <= std::i32::MAX as i64) {
         None
     } else {
         Some(r as i32)
     }
-}
-
-///////////////////////////////////////////////////////////////////////////////
-// Parses a time prefixed with an optional sign.
-//
-// Returns a number of milliseconds
-pub fn parse_srt_time_with_sign(time_str: &str) -> Option<i32> {
-	
-	if time_str.is_empty() {
-		return None;
-	}
-
-	let mut negate = false;
-
-	let time_str_no_sign = {
-		let maybe_c = time_str.chars().next();
-		match maybe_c {
-			Some(c) => match c {
-				'+' => &time_str[1..],
-				'-' => { negate = true; &time_str[1..] },
-				_ => time_str
-			},
-			None => time_str
-		}
-	};
-	let milli = parse_srt_time(time_str_no_sign)?;
-
-	if negate {
-		Some(-milli)
-	}
-	else {
-		Some(milli)
-	}
 }
 
 fn format_srt_time_from_milli(milli: i32) -> String {
@@ -624,15 +600,15 @@ fn test_parse_srt_time() {
 	assert_eq!(parse_srt_time("0.234"), Some(0_234));
 	assert_eq!(parse_srt_time("0.2345"), None);
 	assert_eq!(parse_srt_time("14,28"), Some(14_280));
+	assert_eq!(parse_srt_time("14,010"), Some(14_010));
 	assert_eq!(parse_srt_time("01:14,28"), Some(1*60_000 + 14_280));
-}
-
-#[test]
-fn test_parse_srt_time_with_sign() {
-	assert_eq!(parse_srt_time_with_sign(""), None);
-	assert_eq!(parse_srt_time_with_sign("42"), Some(42_000));
-	assert_eq!(parse_srt_time_with_sign("+42"), Some(42_000));
-	assert_eq!(parse_srt_time_with_sign("-42"), Some(-42_000));
+	assert_eq!(parse_srt_time("+42"), Some(42_000));
+	assert_eq!(parse_srt_time("-42"), Some(-42_000));
+	assert_eq!(parse_srt_time("-00:00:10,000"), Some(-10_000));
+	
+	// Strange time formats we sometimes find
+	assert_eq!(parse_srt_time("00:00:-10,000"), Some(-10_000));
+	assert_eq!(parse_srt_time("00:00:-0,-50"), Some(-500));
 }
 
 // Sometimes the last subtitle is not suitable, so we should ignore it
