@@ -11,7 +11,8 @@ use workfile;
 #[derive(Default)]
 pub struct Subtitle {
 	num: u32,
-	duration: String,
+	pub time_from: i32,
+	pub time_to : i32,
 	pub texts: [String; 5],
 	pub text_count: u32
 }
@@ -20,7 +21,9 @@ impl Subtitle {
 	pub fn to_string(&self) -> String {
 		let mut ret = self.num.to_string();
 		ret.push_str("\r\n");
-		ret.push_str(&self.duration);
+		ret.push_str(&format_srt_time_from_milli(self.time_from));
+		ret.push_str(" --> ");
+		ret.push_str(&format_srt_time_from_milli(self.time_to));
 		ret.push_str("\r\n");
 		for text_index in 0..self.text_count as usize {
 			ret.push_str(&self.texts[text_index]);
@@ -85,7 +88,31 @@ pub fn parse_srt(content: &str) -> Result<Vec<Subtitle>,String> {
 				}
 			},
 			State::WantsDuration => {
-				subtitle.duration = line.to_string();
+				let arrow_index = match line.find("-->") {
+					Some(index) => index,
+					None => {
+						return Err(format!("Bad duration separator at line {}: {}",
+							line_num, line));
+					}
+				};
+				let left = &line[0..arrow_index].trim();
+				let right = &line[arrow_index + 3..].trim();
+
+				subtitle.time_from = match parse_srt_time_with_sign(left) {
+					Some(milli) => milli,
+					None => {
+						return Err(format!("Bad time 'from' at line {}: {}",
+							line_num, left));
+					}
+				};
+				subtitle.time_to = match parse_srt_time_with_sign(right) {
+					Some(milli) => milli,
+					None => {
+						return Err(format!("Bad time 'to' at line {}: {}",
+							line_num, right));
+					}
+				};
+
 				state = State::WantsFirstText;
 			},
 			State::WantsFirstText => {
@@ -560,6 +587,30 @@ pub fn parse_srt_time_with_sign(time_str: &str) -> Option<i32> {
 	}
 }
 
+fn format_srt_time_from_milli(milli: i32) -> String {
+	let milli_abs = if milli < 0 { -milli } else { milli };
+	let sign_str = if milli < 0 { "-" } else { "" };
+
+	let milli_rem = milli_abs % 1000;
+
+	let mut tmp = milli_abs / 1000;
+	let hours = tmp / (60 * 60);
+	tmp = tmp % (60 * 60);
+	let minutes = tmp / 60;
+	let seconds = tmp % 60;
+
+	let ret = format!("{}{:02}:{:02}:{:02},{:03}",
+		sign_str, hours, minutes, seconds, milli_rem);
+	ret
+}
+
+#[test]
+fn test_format_srt_time_from_milli() {
+	assert_eq!(format_srt_time_from_milli(42_000), "00:00:42,000");
+	assert_eq!(format_srt_time_from_milli(62_789), "00:01:02,789");
+	assert_eq!(format_srt_time_from_milli(3*60*60*1000+62_789), "03:01:02,789");
+}
+
 #[test]
 fn test_parse_srt_time() {
 	assert_eq!(parse_srt_time("42"), Some(42_000));
@@ -582,4 +633,50 @@ fn test_parse_srt_time_with_sign() {
 	assert_eq!(parse_srt_time_with_sign("42"), Some(42_000));
 	assert_eq!(parse_srt_time_with_sign("+42"), Some(42_000));
 	assert_eq!(parse_srt_time_with_sign("-42"), Some(-42_000));
+}
+
+// Sometimes the last subtitle is not suitable, so we should ignore it
+pub fn should_keep_last_sub(subtitles: &Vec<Subtitle>) -> bool {
+	let sub_count = subtitles.len();
+	if sub_count == 0 {
+		return true;
+	}
+
+	let last_time = subtitles[sub_count - 1].time_from;
+	if sub_count == 1 {
+		return last_time > 0;
+	}
+
+	let prelast_time = subtitles[sub_count - 2].time_from;
+	if last_time < prelast_time {
+		// Last is going backward, do not keep it
+		false
+	}
+	else if (last_time - prelast_time) > 5*60*60*1000 {
+		// Last is very large, do not keep it
+		false
+	}
+	else {
+		true
+	}
+}
+
+#[test]
+fn test_should_keep_last_sub() {
+		let srt = r#"1
+00:00:00,000 --> 00:00:01,000
+blah
+
+2
+00:00:10,000 --> 00:00:11,000
+yop
+
+3
+-00:00:10,000 --> 00:00:11,000
+yop
+"#;
+	let subs_res = parse_srt(srt);
+	assert!(subs_res.is_ok(), format!("{}", subs_res.err().unwrap()) );
+	let subs = subs_res.unwrap();
+	assert!(!should_keep_last_sub(&subs));
 }

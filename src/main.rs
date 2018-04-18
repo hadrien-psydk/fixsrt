@@ -20,17 +20,42 @@ fn do_replacements(subtitles: &mut Vec<srt::Subtitle>, language: &str) {
 	}
 }
 
-fn do_time_changes(subtitles: &mut Vec<srt::Subtitle>, language: &str,
+fn do_time_changes(subtitles: &mut Vec<srt::Subtitle>,
                    time_shift_ms: i32, time_stretch_ms: i32) {
 
 	if time_shift_ms == 0 && time_stretch_ms == 0 {
 		return;
 	}
+	let sub_count = subtitles.len();
+	if sub_count == 0 {
+		return;
+	}
+
+	if sub_count > std::i32::MAX as usize {
+		eprintln!("Too many subtitles");
+		return;
+	};
+
+	// Compute the limit for stretching
+	let sub_count_i32 = if srt::should_keep_last_sub(subtitles) {
+		sub_count as i32
+	}
+	else {
+		(sub_count - 1) as i32
+	};
+
+	let mut sub_index = 0;
 	for subtitle in subtitles.iter_mut() {
-		for text_index in 0..subtitle.text_count as usize {
-			subtitle.texts[text_index] = txt_rep::replace_one(&subtitle.texts[text_index], &language);
+
+		subtitle.time_from += time_shift_ms;
+		subtitle.time_to += time_shift_ms;
+
+		if time_stretch_ms > 0 && sub_count_i32 > 1 {
+			let stretching = (sub_index * time_stretch_ms) / (sub_count_i32 - 1);
+			subtitle.time_from += stretching;
+			subtitle.time_to += stretching;
 		}
-		//print!("{}", subtitle.to_string());
+		sub_index += 1;
 	}
 }
 
@@ -54,12 +79,12 @@ fn main() {
 			.long("out")
 			.takes_value(true)
 			.help("Outputs to another file (single input only)"))
-		.arg(Arg::with_name("time-shift")
-			.long("time-shift")
+		.arg(Arg::with_name("shift")
+			.long("shift")
 			.takes_value(true)
 			.help("Shifts all subtitles of several seconds"))
-		.arg(Arg::with_name("time-stretch")
-			.long("time-stretch")
+		.arg(Arg::with_name("stretch")
+			.long("stretch")
 			.takes_value(true)
 			.help("Stretches all subtitles after adding several seconds to the last one"))
 		.arg(Arg::with_name("lang")
@@ -71,11 +96,11 @@ fn main() {
 	let no_backup = matches.is_present("nobak");
 	let in_file_paths: Vec<_> = matches.values_of("SRTFILE").unwrap().collect();
 	let out_file_path = matches.value_of("out");
-	let time_shift_ms = match matches.value_of("time-shift") {
+	let time_shift_ms = match matches.value_of("shift") {
 		Some(tos) => match srt::parse_srt_time_with_sign(tos) {
 			Some(tos_ms) => tos_ms,
 			None => {
-				let err = Error { message: "--time-shift invalid argument".into(),
+				let err = Error { message: "--shift invalid argument".into(),
 					kind: clap::ErrorKind::TooManyValues,
 					info: None };
 				err.exit();
@@ -83,11 +108,11 @@ fn main() {
 		},
 		None => 0
 	};
-	let time_stretch_ms = match matches.value_of("time-stretch") {
+	let time_stretch_ms = match matches.value_of("stretch") {
 		Some(tos) => match srt::parse_srt_time_with_sign(tos) {
 			Some(tos_ms) => tos_ms,
 			None => {
-				let err = Error { message: "--time-stretch invalid argument".into(),
+				let err = Error { message: "--stretch invalid argument".into(),
 					kind: clap::ErrorKind::TooManyValues,
 					info: None };
 				err.exit();
@@ -125,7 +150,7 @@ fn main() {
 
 		let mut subtitles = subtitles_res.unwrap();
 		do_replacements(&mut subtitles, &language);
-		do_time_changes(&mut subtitles, &language, time_shift_ms, time_stretch_ms);
+		do_time_changes(&mut subtitles, time_shift_ms, time_stretch_ms);
 
 		// Do backup
 		if !no_backup {
