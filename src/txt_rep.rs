@@ -148,10 +148,12 @@ fn replace_by_rule(line_str: &str, what: &str, with: &str) -> String {
 pub fn replace_one(text: &str, language: &str) -> String {
 	let mut result = text.to_string();
 
-	let mut rule_set = rules::RULES_FR;
-	if language == "EN" {
-		rule_set = rules::RULES_EN;
+	let rule_set = if language == "en" {
+		rules::RULES_EN
 	}
+	else {
+		rules::RULES_FR
+	};
 
 	for rule_ref in rule_set.iter() {
 		let &(what, with) = rule_ref;
@@ -163,7 +165,7 @@ pub fn replace_one(text: &str, language: &str) -> String {
 // For unit testing
 #[allow(dead_code)]
 pub fn replace_one_fr(text: &str) -> String {
-	replace_one(text, "FR")
+	replace_one(text, "fr")
 }
 
 #[test]

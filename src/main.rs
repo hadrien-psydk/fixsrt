@@ -65,7 +65,7 @@ fn main() {
 		.arg(Arg::with_name("lang")
 			.long("lang")
 			.takes_value(true)
-			.help("Selects the language of the SRT file(s) (FR or EN)"))
+			.help("Selects the language of the SRT file(s) (fr/en)"))
 		.get_matches();
 
 	let no_backup = matches.is_present("nobak");
@@ -95,9 +95,9 @@ fn main() {
 		},
 		None => 0
 	};
-	let language = matches.value_of("lang").unwrap_or("FR");
+	let language = matches.value_of("lang").unwrap_or("fr");
 
-	if language != "EN" && language != "FR" {
+	if language != "en" && language != "fr" {
 		println!("Bad language");
 		std::process::exit(1);
 	}
