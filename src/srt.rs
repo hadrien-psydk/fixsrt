@@ -412,11 +412,15 @@ pub fn save_subtitles(subtitles: &Vec<Subtitle>, file_path: &str) -> io::Result<
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-// Parses a time expressed as an optional sign, a number of second and a
-// fraction of seconds. Examples:
+// Parses a SRT time expressed as hours:minutes:seconds,milliseconds.
+// milliseconds can also be separated with '.'
+// hours and minutes are optional
+//
+// Examples:
 // 42.123
 // 42.5
-// "," can be used insted of "."
+// 07:42,6
+// 01:25:34,421
 //
 // Returns a number of milliseconds
 pub fn parse_srt_time(time_str: &str) -> Option<i32> {
@@ -524,7 +528,7 @@ pub fn parse_srt_time(time_str: &str) -> Option<i32> {
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-// Parses a time prefixedwith an optional sign.
+// Parses a time prefixed with an optional sign.
 //
 // Returns a number of milliseconds
 pub fn parse_srt_time_with_sign(time_str: &str) -> Option<i32> {
