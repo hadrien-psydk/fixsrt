@@ -415,14 +415,16 @@ pub fn save_subtitles(subtitles: &Vec<Subtitle>, file_path: &str) -> io::Result<
 // Parses a time expressed as an optional sign, a number of second and a
 // fraction of seconds. Examples:
 // 42.123
-// +42.123
-// -42.123
 // 42.5
 // "," can be used insted of "."
 //
 // Returns a number of milliseconds
 pub fn parse_srt_time(time_str: &str) -> Option<i32> {
 	
+	if time_str.is_empty() {
+		return None;
+	}
+
 	const MAX_DEC_DIGITS: usize = 3;
 	const TEN_POW: &'static [i32] = &[1, 10, 100, 1000];
 
@@ -521,16 +523,65 @@ pub fn parse_srt_time(time_str: &str) -> Option<i32> {
     }
 }
 
+///////////////////////////////////////////////////////////////////////////////
+// Parses a time prefixedwith an optional sign.
+//
+// Returns a number of milliseconds
+pub fn parse_srt_time_with_sign(time_str: &str) -> Option<i32> {
+	
+	if time_str.is_empty() {
+		return None;
+	}
+
+	let mut negate = false;
+
+	let time_str_no_sign = {
+		let maybe_c = time_str.chars().next();
+		match maybe_c {
+			Some(c) => match c {
+				'+' => &time_str[1..],
+				'-' => { negate = true; &time_str[1..] },
+				_ => time_str
+			},
+			None => time_str
+		}
+	};
+	let milli = parse_srt_time(time_str_no_sign)?;
+/*	milli = if maybe_milli.is_none() {
+		return None;
+	}
+	else {
+		maybe_milli.unwrap();
+	}*/
+
+	if negate {
+		Some(-milli)
+	}
+	else {
+		Some(milli)
+	}
+}
+
 #[test]
-fn test_parse_time_offset() {
-	assert_eq!(parse_srt_time("42"), Some(42000));
-	assert_eq!(parse_srt_time("1.247"), Some(1247));
+fn test_parse_srt_time() {
+	assert_eq!(parse_srt_time("42"), Some(42_000));
+	assert_eq!(parse_srt_time("1.247"), Some(1_247));
+	assert_eq!(parse_srt_time(""), None);
 	assert_eq!(parse_srt_time("."), None);
 	assert_eq!(parse_srt_time("0"), Some(0));
 	assert_eq!(parse_srt_time("0."), Some(0));
-	assert_eq!(parse_srt_time("0.2"), Some(200));
-	assert_eq!(parse_srt_time("0.23"), Some(230));
-	assert_eq!(parse_srt_time("0.234"), Some(234));
+	assert_eq!(parse_srt_time("0.2"), Some(0_200));
+	assert_eq!(parse_srt_time("0.23"), Some(0_230));
+	assert_eq!(parse_srt_time("0.234"), Some(0_234));
 	assert_eq!(parse_srt_time("0.2345"), None);
-	assert_eq!(parse_srt_time("14,28"), Some(14280));
+	assert_eq!(parse_srt_time("14,28"), Some(14_280));
+	assert_eq!(parse_srt_time("01:14,28"), Some(1*60_000 + 14_280));
+}
+
+#[test]
+fn test_parse_srt_time_with_sign() {
+	assert_eq!(parse_srt_time_with_sign(""), None);
+	assert_eq!(parse_srt_time_with_sign("42"), Some(42_000));
+	assert_eq!(parse_srt_time_with_sign("+42"), Some(42_000));
+	assert_eq!(parse_srt_time_with_sign("-42"), Some(-42_000));
 }

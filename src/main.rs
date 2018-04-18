@@ -72,7 +72,7 @@ fn main() {
 	let in_file_paths: Vec<_> = matches.values_of("SRTFILE").unwrap().collect();
 	let out_file_path = matches.value_of("out");
 	let time_shift_ms = match matches.value_of("time-shift") {
-		Some(tos) => match srt::parse_srt_time(tos) {
+		Some(tos) => match srt::parse_srt_time_with_sign(tos) {
 			Some(tos_ms) => tos_ms,
 			None => {
 				let err = Error { message: "--time-shift invalid argument".into(),
@@ -84,7 +84,7 @@ fn main() {
 		None => 0
 	};
 	let time_stretch_ms = match matches.value_of("time-stretch") {
-		Some(tos) => match srt::parse_srt_time(tos) {
+		Some(tos) => match srt::parse_srt_time_with_sign(tos) {
 			Some(tos_ms) => tos_ms,
 			None => {
 				let err = Error { message: "--time-stretch invalid argument".into(),
