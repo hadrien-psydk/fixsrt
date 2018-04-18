@@ -41,7 +41,6 @@ fn do_time_changes(subtitles: &mut Vec<srt::Subtitle>,
 		sub_count as i32
 	}
 	else {
-		println!("last not kept");
 		(sub_count - 1) as i32
 	};
 
