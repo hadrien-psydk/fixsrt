@@ -63,8 +63,6 @@ fn do_time_changes(subtitles: &mut Vec<srt::Subtitle>,
 
 ///////////////////////////////////////////////////////////////////////////////
 fn main() {
-	srt::parse_srt_time("-00:00:10,000");
-
 	let matches = App::new("fixsrt")
 		.version(VERSION)
 		.author("Hadrien Nilsson")
