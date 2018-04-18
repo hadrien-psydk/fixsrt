@@ -551,12 +551,6 @@ pub fn parse_srt_time_with_sign(time_str: &str) -> Option<i32> {
 		}
 	};
 	let milli = parse_srt_time(time_str_no_sign)?;
-/*	milli = if maybe_milli.is_none() {
-		return None;
-	}
-	else {
-		maybe_milli.unwrap();
-	}*/
 
 	if negate {
 		Some(-milli)
