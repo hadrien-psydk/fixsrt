@@ -160,36 +160,42 @@ pub fn replace_one(text: &str, language: &str) -> String {
 	result
 }
 
+// For unit testing
+#[allow(dead_code)]
+pub fn replace_one_fr(text: &str) -> String {
+	replace_one(text, "FR")
+}
+
 #[test]
-fn test_replace_one() {
-	assert_eq!(replace_one("Ca va"), "Ça va");
-	assert_eq!(replace_one("Ca."), "Ça.");
-	assert_eq!(replace_one("Ca"), "Ça");
-	assert!(replace_one("Caribou") != "Çaribou");
-	assert_eq!(replace_one("oeizz"), "œizz");
-	assert_eq!(replace_one("des soeurs."), "des sœurs.");
+fn test_replace_one_fr() {
+	assert_eq!(replace_one_fr("Ca va"), "Ça va");
+	assert_eq!(replace_one_fr("Ca."), "Ça.");
+	assert_eq!(replace_one_fr("Ca"), "Ça");
+	assert!(replace_one_fr("Caribou") != "Çaribou");
+	assert_eq!(replace_one_fr("oeizz"), "œizz");
+	assert_eq!(replace_one_fr("des soeurs."), "des sœurs.");
 
 	// No space if newline
-	assert_eq!(replace_one("D'ou sa"), "D'où sa");
-	assert_eq!(replace_one("bien sur,"), "bien sûr,");
+	assert_eq!(replace_one_fr("D'ou sa"), "D'où sa");
+	assert_eq!(replace_one_fr("bien sur,"), "bien sûr,");
 
-	assert_eq!(replace_one("bien sur,"), "bien sûr,");
-	assert_eq!(replace_one("Ecart entre"), "Écart entre");
-	assert_eq!(replace_one("un coca"), "un coca");
-	assert_eq!(replace_one("l'Etat"), "l'État");
-	assert_eq!(replace_one("ok?"), "ok\u{A0}?");
-	assert_eq!(replace_one("ok ?"), "ok\u{A0}?");
-	assert_eq!(replace_one("ok!"), "ok\u{A0}!");
-	assert_eq!(replace_one("ok !"), "ok\u{A0}!");
-	assert_eq!(replace_one("A quoi?"), "À quoi\u{A0}?");
-	assert_eq!(replace_one("A t'écouter"), "À t'écouter");
-	assert_eq!(replace_one("manoeuvrer"), "manœuvrer");
-	assert_eq!(replace_one("Etiez-vous"), "Étiez-vous");
-	assert_eq!(replace_one("des qu'il"), "dès qu'il");
-	assert_eq!(replace_one("10ème"), "10ᵉ");
-	assert_eq!(replace_one("10e"), "10ᵉ");
-	assert_eq!(replace_one("10è"), "10ᵉ");
-	assert_eq!(replace_one("\"Oeil pour oeil\""), "\"Œil pour œil\"");
-	assert_eq!(replace_one("Etaient-ils"), "Étaient-ils");
-	assert_eq!(replace_one("caca"), "caca");
+	assert_eq!(replace_one_fr("bien sur,"), "bien sûr,");
+	assert_eq!(replace_one_fr("Ecart entre"), "Écart entre");
+	assert_eq!(replace_one_fr("un coca"), "un coca");
+	assert_eq!(replace_one_fr("l'Etat"), "l'État");
+	assert_eq!(replace_one_fr("ok?"), "ok\u{A0}?");
+	assert_eq!(replace_one_fr("ok ?"), "ok\u{A0}?");
+	assert_eq!(replace_one_fr("ok!"), "ok\u{A0}!");
+	assert_eq!(replace_one_fr("ok !"), "ok\u{A0}!");
+	assert_eq!(replace_one_fr("A quoi?"), "À quoi\u{A0}?");
+	assert_eq!(replace_one_fr("A t'écouter"), "À t'écouter");
+	assert_eq!(replace_one_fr("manoeuvrer"), "manœuvrer");
+	assert_eq!(replace_one_fr("Etiez-vous"), "Étiez-vous");
+	assert_eq!(replace_one_fr("des qu'il"), "dès qu'il");
+	assert_eq!(replace_one_fr("10ème"), "10ᵉ");
+	assert_eq!(replace_one_fr("10e"), "10ᵉ");
+	assert_eq!(replace_one_fr("10è"), "10ᵉ");
+	assert_eq!(replace_one_fr("\"Oeil pour oeil\""), "\"Œil pour œil\"");
+	assert_eq!(replace_one_fr("Etaient-ils"), "Étaient-ils");
+	assert_eq!(replace_one_fr("caca"), "caca");
 }
