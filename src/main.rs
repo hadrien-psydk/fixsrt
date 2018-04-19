@@ -50,7 +50,7 @@ fn do_time_changes(subtitles: &mut Vec<srt::Subtitle>,
 		subtitle.time_from += time_shift_ms;
 		subtitle.time_to += time_shift_ms;
 
-		if time_stretch_ms > 0 && sub_count_i32 > 1 && sub_index < sub_count_i32 {
+		if time_stretch_ms != 0 && sub_count_i32 > 1 && sub_index < sub_count_i32 {
 			let stretching = (sub_index * time_stretch_ms) / (sub_count_i32 - 1);
 			subtitle.time_from += stretching;
 			subtitle.time_to += stretching;

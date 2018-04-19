@@ -1,6 +1,6 @@
 [package]
 name = "fixsrt"
-version = "16.1.0-beta"
+version = "16.1.0-beta.2"
 authors = ["Hadrien Nilsson <hadrien@psydk.org>"]
 
 [dependencies]

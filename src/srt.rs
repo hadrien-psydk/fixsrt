@@ -605,6 +605,7 @@ fn test_parse_srt_time() {
 	assert_eq!(parse_srt_time("+42"), Some(42_000));
 	assert_eq!(parse_srt_time("-42"), Some(-42_000));
 	assert_eq!(parse_srt_time("-00:00:10,000"), Some(-10_000));
+	assert_eq!(parse_srt_time("-0.100"), Some(-0_100));
 	
 	// Strange time formats we sometimes find
 	assert_eq!(parse_srt_time("00:00:-10,000"), Some(-10_000));
