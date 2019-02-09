@@ -545,7 +545,7 @@ pub fn parse_srt_time(time_str: &str) -> Option<i32> {
 	let milliseconds = parsed_frags[3];
 
 	// Combine all fragments
-	let mut r: i64 = hours as i64;
+	let mut r: i64 = 0 as i64;
 	r += (hours * 60 * 60) as i64;
 	r += (minutes * 60) as i64;
 	r += seconds as i64;
@@ -611,6 +611,9 @@ fn test_parse_srt_time() {
 	// Strange time formats we sometimes find
 	assert_eq!(parse_srt_time("00:00:-10,000"), Some(-10_000));
 	assert_eq!(parse_srt_time("00:00:-0,-50"), Some(-500));
+
+	// Test with more hours not zero
+	assert_eq!(parse_srt_time("01:00:03,100"), Some(3603_100));
 }
 
 // Sometimes the last subtitle is not suitable, so we should ignore it
