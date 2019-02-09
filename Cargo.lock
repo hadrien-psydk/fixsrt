@@ -37,7 +37,7 @@ dependencies = [
 
 [[package]]
 name = "fixsrt"
-version = "16.1.0-beta.2"
+version = "16.2.0"
 dependencies = [
  "clap 2.31.2 (registry+https://github.com/rust-lang/crates.io-index)",
 ]

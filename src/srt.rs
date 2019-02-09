@@ -451,7 +451,7 @@ pub fn save_subtitles(subtitles: &Vec<Subtitle>, file_path: &str) -> io::Result<
 //
 // Returns a number of milliseconds
 pub fn parse_srt_time(time_str: &str) -> Option<i32> {
-	
+
 	if time_str.is_empty() {
 		return None;
 	}
@@ -606,7 +606,8 @@ fn test_parse_srt_time() {
 	assert_eq!(parse_srt_time("-42"), Some(-42_000));
 	assert_eq!(parse_srt_time("-00:00:10,000"), Some(-10_000));
 	assert_eq!(parse_srt_time("-0.100"), Some(-0_100));
-	
+	assert_eq!(parse_srt_time("-1"), Some(-1_000));
+
 	// Strange time formats we sometimes find
 	assert_eq!(parse_srt_time("00:00:-10,000"), Some(-10_000));
 	assert_eq!(parse_srt_time("00:00:-0,-50"), Some(-500));
